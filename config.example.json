@@ -1,0 +1,28 @@
+{
+  "brand": "Works Lab",
+  "website": "https://resume.workslab.in",
+  "product": "ATS Resume Templates",
+  "price_inr": 149,
+  "approved_templates": [
+    "template-01-professional-blue.png",
+    "template-02-modern-green.png",
+    "template-03-fresher-pink.png",
+    "template-04-executive-dark.png",
+    "template-05-creative-purple.png"
+  ],
+  "sample_creatives": [
+    "sample-ad-01.png",
+    "sample-ad-02.png",
+    "sample-ad-03.png",
+    "sample-ad-04.png",
+    "sample-ad-05.png"
+  ],
+  "channels": [
+    "instagram",
+    "whatsapp"
+  ],
+  "next_integrations": [
+    "instagram_content_publishing",
+    "whatsapp_cloud_api"
+  ]
+}
