@@ -1,0 +1,70 @@
+name: Test WhatsApp Notification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-whatsapp:
+    runs-on: ubuntu-latest
+
+    env:
+      WA_API_VERSION: "v26.0"
+      WA_ACCESS_TOKEN: ${{ secrets.WA_ACCESS_TOKEN }}
+      WA_PHONE_NUMBER_ID: ${{ secrets.WA_PHONE_NUMBER_ID }}
+      WA_RECIPIENT: ${{ secrets.WA_RECIPIENT }}
+
+    steps:
+
+      - name: Verify WhatsApp secrets
+        run: |
+          set -euo pipefail
+
+          if [ -z "${WA_ACCESS_TOKEN:-}" ]; then
+            echo "❌ WA_ACCESS_TOKEN is missing."
+            exit 1
+          fi
+
+          if [ -z "${WA_PHONE_NUMBER_ID:-}" ]; then
+            echo "❌ WA_PHONE_NUMBER_ID is missing."
+            exit 1
+          fi
+
+          if [ -z "${WA_RECIPIENT:-}" ]; then
+            echo "❌ WA_RECIPIENT is missing."
+            exit 1
+          fi
+
+          echo "✅ WhatsApp secrets found."
+          echo "Recipient configured."
+
+      - name: Send WhatsApp test message
+        run: |
+          set -euo pipefail
+
+          RESPONSE=$(curl             --fail-with-body             --silent             --show-error             -X POST             "https://graph.facebook.com/$WA_API_VERSION/$WA_PHONE_NUMBER_ID/messages"             -H "Authorization: Bearer $WA_ACCESS_TOKEN"             -H "Content-Type: application/json"             -d "{
+              "messaging_product": "whatsapp",
+              "to": "$WA_RECIPIENT",
+              "type": "template",
+              "template": {
+                "name": "hello_world",
+                "language": {
+                  "code": "en_US"
+                }
+              }
+            }")
+
+          echo "WhatsApp API response:"
+          echo "$RESPONSE"
+
+          MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messages[0].id // empty')
+
+          if [ -z "$MESSAGE_ID" ]; then
+            echo "❌ WhatsApp message ID was not returned."
+            exit 1
+          fi
+
+          echo "✅ WhatsApp test message sent successfully."
+          echo "Message ID: $MESSAGE_ID"
