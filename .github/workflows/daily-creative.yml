@@ -1,36 +1,285 @@
-name: Works Lab Daily Creative
+name: Works Lab Daily Instagram Post
 
 on:
   workflow_dispatch:
+
   schedule:
-    # 10:07 AM IST = 04:37 UTC. A non-round minute reduces GitHub schedule contention.
+    # 10:07 AM IST = 04:37 UTC
     - cron: "37 4 * * *"
 
 permissions:
   contents: write
 
 jobs:
-  generate:
+  generate-and-publish:
     runs-on: ubuntu-latest
+
+    env:
+      IG_API_VERSION: "v26.0"
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+
     steps:
+
+      # ---------------------------------------------------
+      # 1. Checkout repository
+      # ---------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v7
 
+      # ---------------------------------------------------
+      # 2. Setup Python
+      # ---------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
+      # ---------------------------------------------------
+      # 3. Install dependencies
+      # ---------------------------------------------------
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
 
+      # ---------------------------------------------------
+      # 4. Generate today's creative
+      # ---------------------------------------------------
       - name: Generate daily creative
-        run: python scripts/generate_ad.py
+        run: |
+          python scripts/generate_ad.py
 
+      # ---------------------------------------------------
+      # 5. Set today's date
+      # ---------------------------------------------------
+      - name: Set date
+        run: |
+          echo "TODAY=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------
+      # 6. Commit generated image + metadata
+      # ---------------------------------------------------
       - name: Commit generated creative
         run: |
           git config user.name "works-lab-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add generated_ads data
-          git commit -m "chore: generate daily Works Lab creative" || echo "No changes"
-          git push
+
+          git add generated_ads/
+
+          if git diff --cached --quiet; then
+            echo "No new files to commit."
+          else
+            git commit -m "chore: generate daily Works Lab creative"
+            git push
+          fi
+
+      # ---------------------------------------------------
+      # 7. Verify Instagram secrets
+      # ---------------------------------------------------
+      - name: Verify Instagram credentials
+        run: |
+          set -euo pipefail
+
+          if [ -z "${IG_ACCESS_TOKEN:-}" ]; then
+            echo "❌ IG_ACCESS_TOKEN is missing."
+            exit 1
+          fi
+
+          if [ -z "${IG_USER_ID:-}" ]; then
+            echo "❌ IG_USER_ID is missing."
+            exit 1
+          fi
+
+          echo "✅ Instagram secrets found."
+
+      # ---------------------------------------------------
+      # 8. Define public image URL
+      # ---------------------------------------------------
+      - name: Build public image URL
+        run: |
+          IMAGE_URL="https://raw.githubusercontent.com/Anuragdhale27/works-lab-social-automation/main/generated_ads/daily-${TODAY}.jpg"
+
+          echo "IMAGE_URL=$IMAGE_URL" >> "$GITHUB_ENV"
+
+          echo "Public image URL:"
+          echo "$IMAGE_URL"
+
+      # ---------------------------------------------------
+      # 9. Wait until GitHub raw URL is publicly available
+      # ---------------------------------------------------
+      - name: Verify public image URL
+        run: |
+          set -euo pipefail
+
+          echo "Checking public image URL..."
+
+          for i in {1..30}; do
+
+            HTTP_CODE=$(curl \
+              -L \
+              -sS \
+              -o /tmp/image.jpg \
+              -w "%{http_code}" \
+              "$IMAGE_URL")
+
+            CONTENT_TYPE=$(file -b --mime-type /tmp/image.jpg || true)
+
+            FILE_SIZE=$(wc -c < /tmp/image.jpg)
+
+            echo "Attempt $i"
+            echo "HTTP: $HTTP_CODE"
+            echo "Type: $CONTENT_TYPE"
+            echo "Size: $FILE_SIZE bytes"
+
+            if [ "$HTTP_CODE" = "200" ] \
+              && [ "$CONTENT_TYPE" = "image/jpeg" ] \
+              && [ "$FILE_SIZE" -gt 10000 ]; then
+
+              echo "✅ Public image is available."
+
+              exit 0
+            fi
+
+            sleep 5
+
+          done
+
+          echo "❌ Public image was not available."
+          exit 1
+
+      # ---------------------------------------------------
+      # 10. Read caption from metadata JSON
+      # ---------------------------------------------------
+      - name: Read Instagram metadata
+        run: |
+          set -euo pipefail
+
+          METADATA_FILE="generated_ads/daily-${TODAY}.json"
+
+          if [ ! -f "$METADATA_FILE" ]; then
+            echo "❌ Metadata file not found:"
+            echo "$METADATA_FILE"
+            exit 1
+          fi
+
+          CAPTION=$(jq -r '.caption' "$METADATA_FILE")
+
+          {
+            echo "CAPTION<<EOF"
+            echo "$CAPTION"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+          echo "✅ Instagram caption loaded."
+
+      # ---------------------------------------------------
+      # 11. Create Instagram media container
+      # ---------------------------------------------------
+      - name: Create Instagram media container
+        id: container
+        run: |
+          set -euo pipefail
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            -X POST \
+            -H "Authorization: Bearer $IG_ACCESS_TOKEN" \
+            --data-urlencode "image_url=$IMAGE_URL" \
+            --data-urlencode "caption=$CAPTION" \
+            "https://graph.instagram.com/$IG_API_VERSION/$IG_USER_ID/media" \
+            -o /tmp/container.json
+
+          cat /tmp/container.json
+
+          CONTAINER_ID=$(jq -r '.id // empty' /tmp/container.json)
+
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "❌ Meta did not return a container ID."
+            exit 1
+          fi
+
+          echo "✅ Instagram container created."
+
+          echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------
+      # 12. Wait for Instagram processing
+      # ---------------------------------------------------
+      - name: Wait for Instagram container
+        run: |
+          set -euo pipefail
+
+          for i in {1..18}; do
+
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              -H "Authorization: Bearer $IG_ACCESS_TOKEN" \
+              "https://graph.instagram.com/$IG_API_VERSION/$CONTAINER_ID?fields=status_code,status" \
+              -o /tmp/status.json
+
+            STATUS=$(jq -r '.status_code // empty' /tmp/status.json)
+            MESSAGE=$(jq -r '.status // empty' /tmp/status.json)
+
+            echo "Attempt $i"
+            echo "Status: $STATUS"
+            echo "Message: $MESSAGE"
+
+            case "$STATUS" in
+
+              FINISHED)
+                echo "✅ Instagram container is ready."
+                exit 0
+                ;;
+
+              PUBLISHED)
+                echo "✅ Instagram container already published."
+                exit 0
+                ;;
+
+              ERROR|EXPIRED)
+                echo "❌ Instagram container processing failed."
+                cat /tmp/status.json
+                exit 1
+                ;;
+
+            esac
+
+            sleep 10
+
+          done
+
+          echo "❌ Instagram container did not finish."
+          exit 1
+
+      # ---------------------------------------------------
+      # 13. Publish Instagram post
+      # ---------------------------------------------------
+      - name: Publish Instagram post
+        run: |
+          set -euo pipefail
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            -X POST \
+            -H "Authorization: Bearer $IG_ACCESS_TOKEN" \
+            --data-urlencode "creation_id=$CONTAINER_ID" \
+            "https://graph.instagram.com/$IG_API_VERSION/$IG_USER_ID/media_publish" \
+            -o /tmp/published.json
+
+          cat /tmp/published.json
+
+          MEDIA_ID=$(jq -r '.id // empty' /tmp/published.json)
+
+          if [ -z "$MEDIA_ID" ]; then
+            echo "❌ Instagram media ID was not returned."
+            exit 1
+          fi
+
+          echo "✅ Instagram post published successfully."
+          echo "Media ID: $MEDIA_ID"
