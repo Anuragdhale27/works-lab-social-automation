@@ -1,0 +1,48 @@
+name: Test Instagram Connection
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Instagram token and account
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${IG_ACCESS_TOKEN:-}" ]; then
+            echo "IG_ACCESS_TOKEN secret is missing"
+            exit 1
+          fi
+
+          if [ -z "${IG_USER_ID:-}" ]; then
+            echo "IG_USER_ID secret is missing"
+            exit 1
+          fi
+
+          RESPONSE=$(curl --fail-with-body --silent --show-error \
+            --header "Authorization: Bearer ${IG_ACCESS_TOKEN}" \
+            "https://graph.instagram.com/v26.0/me?fields=user_id,username")
+
+          echo "Instagram API response:"
+          echo "$RESPONSE" | python -c '
+          import json,sys
+          data=json.load(sys.stdin)
+          print("user_id:", data.get("user_id"))
+          print("username:", data.get("username"))
+          '
+
+          ACTUAL_ID=$(echo "$RESPONSE" | python -c 'import json,sys; print(json.load(sys.stdin).get("user_id",""))')
+
+          if [ "$ACTUAL_ID" != "$IG_USER_ID" ]; then
+            echo "ERROR: IG_USER_ID secret does not match the ID returned by Instagram."
+            echo "Expected: $IG_USER_ID"
+            echo "Returned: $ACTUAL_ID"
+            exit 1
+          fi
+
+          echo "✅ Instagram token is valid and IG_USER_ID matches."
