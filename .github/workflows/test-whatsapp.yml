@@ -38,33 +38,55 @@ jobs:
           fi
 
           echo "✅ WhatsApp secrets found."
+          echo "Phone Number ID configured."
           echo "Recipient configured."
 
       - name: Send WhatsApp test message
         run: |
-          set -euo pipefail
+          set -u
 
-          RESPONSE=$(curl             --fail-with-body             --silent             --show-error             -X POST             "https://graph.facebook.com/$WA_API_VERSION/$WA_PHONE_NUMBER_ID/messages"             -H "Authorization: Bearer $WA_ACCESS_TOKEN"             -H "Content-Type: application/json"             -d "{
-              "messaging_product": "whatsapp",
-              "to": "$WA_RECIPIENT",
-              "type": "template",
-              "template": {
-                "name": "hello_world",
-                "language": {
-                  "code": "en_US"
-                }
-              }
-            }")
+          # Normalize recipient to international digits only.
+          RECIPIENT=$(printf '%s' "$WA_RECIPIENT" | tr -d ' +()-')
 
-          echo "WhatsApp API response:"
-          echo "$RESPONSE"
-
-          MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messages[0].id // empty')
-
-          if [ -z "$MESSAGE_ID" ]; then
-            echo "❌ WhatsApp message ID was not returned."
+          if ! printf '%s' "$RECIPIENT" | grep -Eq '^[0-9]{8,15}$'; then
+            echo "❌ WA_RECIPIENT must contain 8-15 digits in international format."
+            echo "Example format: 919876543210"
             exit 1
           fi
 
-          echo "✅ WhatsApp test message sent successfully."
-          echo "Message ID: $MESSAGE_ID"
+          PAYLOAD=$(jq -n             --arg to "$RECIPIENT"             '{
+              messaging_product: "whatsapp",
+              to: $to,
+              type: "template",
+              template: {
+                name: "hello_world",
+                language: {
+                  code: "en_US"
+                }
+              }
+            }')
+
+          HTTP_CODE=$(curl             -sS             -X POST             "https://graph.facebook.com/$WA_API_VERSION/$WA_PHONE_NUMBER_ID/messages"             -H "Authorization: Bearer $WA_ACCESS_TOKEN"             -H "Content-Type: application/json"             --data "$PAYLOAD"             -o /tmp/whatsapp_response.json             -w "%{http_code}")
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "WhatsApp API response:"
+          jq 'del(.error.fbtrace_id)' /tmp/whatsapp_response.json || cat /tmp/whatsapp_response.json
+
+          MESSAGE_ID=$(jq -r '.messages[0].id // empty' /tmp/whatsapp_response.json)
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ] && [ -n "$MESSAGE_ID" ]; then
+            echo "✅ WhatsApp test message accepted by Meta."
+            echo "Message ID: $MESSAGE_ID"
+            exit 0
+          fi
+
+          ERROR_CODE=$(jq -r '.error.code // empty' /tmp/whatsapp_response.json)
+          ERROR_TYPE=$(jq -r '.error.type // empty' /tmp/whatsapp_response.json)
+          ERROR_MESSAGE=$(jq -r '.error.message // empty' /tmp/whatsapp_response.json)
+
+          echo "❌ WhatsApp send failed."
+          echo "Error code: $ERROR_CODE"
+          echo "Error type: $ERROR_TYPE"
+          echo "Error message: $ERROR_MESSAGE"
+
+          exit 1
