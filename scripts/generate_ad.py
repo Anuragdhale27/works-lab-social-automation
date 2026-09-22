@@ -294,10 +294,10 @@ def render(item,template,theme_name):
         rr(d,(70,140,1010,975),34,(255,255,255,228))
         d.text((100,178),"WORKS LAB / CAREER KIT",font=F(theme,15,True),fill=theme["accent"])
         rich_hook(d,item,theme,100,225,840,260,68)
-        body_value(d,item,theme,100,520,840,88,115)
-        resume_card(img,template,(325,650,755,935),0)
-        cta(d,item,theme,(100,885,520,950))
-        price_badge(d,theme,810,885)
+        body_value(d,item,theme,100,520,840,82,88)
+        resume_card(img,template,(325,690,755,930),0)
+        cta(d,item,theme,(100,875,520,940))
+        price_badge(d,theme,810,875)
 
     elif layout == "chat":
         d.text((70,145),"@WORKSLAB",font=F(theme,15,True),fill=theme["accent"])
@@ -306,15 +306,16 @@ def render(item,template,theme_name):
         rr(d,(330,455,1010,580),28,theme["accent"])
         bf,bt=fit(d,item["body"],610,88,30,19,theme,False)
         d.multiline_text((372,482),bt,font=bf,fill="white",spacing=6)
-        resume_card(img,template,(305,600,820,915),1)
+        resume_card(img,template,(305,585,820,890),1)
         value_y=610
         parts=[p.strip() for p in str(item["value"]).split("•") if p.strip()][:3]
         for i,part in enumerate(parts):
-            rr(d,(70,value_y+i*57,255,value_y+i*45+42),20,(255,255,255,210))
+            chip_y=value_y+i*57
+            rr(d,(70,chip_y,255,chip_y+42),20,(255,255,255,210))
             pf,pt=fit(d,part,150,28,17,13,theme,False)
-            d.multiline_text((88,value_y+10+i*57),pt,font=pf,fill=theme["ink"])
-        cta(d,item,theme,(70,825,430,895))
-        price_badge(d,theme,850,825)
+            d.multiline_text((88,chip_y+9),pt,font=pf,fill=theme["ink"])
+        cta(d,item,theme,(70,920,430,990))
+        price_badge(d,theme,850,920)
 
     elif layout == "poster":
         d.text((60,145),"01",font=F(theme,106,True),fill=theme["accent"])
