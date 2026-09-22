@@ -361,10 +361,14 @@ def choose():
         raise FileNotFoundError("No resume templates found.")
 
     n = date.today().toordinal()
+    # Use different modular sequences so daily theme/template/hook combinations
+    # do not fall into a short repeating 20-day cycle.
     item = normalize(items[n % len(items)])
     theme_names = cfg["rotation"]
-    theme_name = theme_names[n % len(theme_names)]
-    template = templates[(n * 7) % len(templates)]
+    theme_idx = (n * 7 + n // 20) % len(theme_names)
+    template_idx = (n * 3 + n // 10) % len(templates)
+    theme_name = theme_names[theme_idx]
+    template = templates[template_idx]
     return item, template, theme_name
 
 
