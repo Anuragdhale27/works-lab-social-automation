@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      TZ: "Asia/Kolkata"
       IG_API_VERSION: "v26.0"
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
@@ -54,7 +55,9 @@ jobs:
       # ---------------------------------------------------
       - name: Set date
         run: |
-          echo "TODAY=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+          set -euo pipefail
+          echo "TODAY=$(TZ=Asia/Kolkata date +%Y-%m-%d)" >> "$GITHUB_ENV"
+          echo "Using India date: $(TZ=Asia/Kolkata date +%Y-%m-%d)"
 
       # ---------------------------------------------------
       # 6. Commit generated image + metadata
@@ -97,9 +100,15 @@ jobs:
       # ---------------------------------------------------
       - name: Build public image URL
         run: |
-          IMAGE_URL="https://raw.githubusercontent.com/Anuragdhale27/works-lab-social-automation/main/generated_ads/daily-${TODAY}.jpg"
+          set -euo pipefail
+
+          # Use the exact commit now checked out locally after the generated
+          # creative has been committed. This avoids stale raw-GitHub caching.
+          COMMIT_SHA=$(git rev-parse HEAD)
+          IMAGE_URL="https://raw.githubusercontent.com/Anuragdhale27/works-lab-social-automation/${COMMIT_SHA}/generated_ads/daily-${TODAY}.jpg"
 
           echo "IMAGE_URL=$IMAGE_URL" >> "$GITHUB_ENV"
+          echo "IMAGE_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
 
           echo "Public image URL:"
           echo "$IMAGE_URL"
@@ -180,28 +189,38 @@ jobs:
         run: |
           set -euo pipefail
 
-          curl \
-            --fail-with-body \
+          echo "Creating Instagram media container..."
+          echo "Image URL: $IMAGE_URL"
+
+          HTTP_CODE=$(curl \
             --silent \
             --show-error \
+            --write-out "%{http_code}" \
             -X POST \
             -H "Authorization: Bearer $IG_ACCESS_TOKEN" \
             --data-urlencode "image_url=$IMAGE_URL" \
             --data-urlencode "caption=$CAPTION" \
             "https://graph.instagram.com/$IG_API_VERSION/$IG_USER_ID/media" \
-            -o /tmp/container.json
+            -o /tmp/container.json)
 
+          echo "HTTP status: $HTTP_CODE"
+          echo "Meta response:"
           cat /tmp/container.json
+          echo
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "❌ Instagram media container request failed."
+            exit 1
+          fi
 
           CONTAINER_ID=$(jq -r '.id // empty' /tmp/container.json)
 
           if [ -z "$CONTAINER_ID" ]; then
-            echo "❌ Meta did not return a container ID."
+            echo "❌ Meta returned a success HTTP code but no container ID."
             exit 1
           fi
 
           echo "✅ Instagram container created."
-
           echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
 
       # ---------------------------------------------------
@@ -213,13 +232,22 @@ jobs:
 
           for i in {1..18}; do
 
-            curl \
-              --fail-with-body \
+            HTTP_CODE=$(curl \
               --silent \
               --show-error \
+              --write-out "%{http_code}" \
               -H "Authorization: Bearer $IG_ACCESS_TOKEN" \
               "https://graph.instagram.com/$IG_API_VERSION/$CONTAINER_ID?fields=status_code,status" \
-              -o /tmp/status.json
+              -o /tmp/status.json)
+
+            echo "HTTP: $HTTP_CODE"
+            echo "Response:"
+            cat /tmp/status.json
+
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "❌ Instagram status request failed."
+              exit 1
+            fi
 
             STATUS=$(jq -r '.status_code // empty' /tmp/status.json)
             MESSAGE=$(jq -r '.status // empty' /tmp/status.json)
@@ -262,17 +290,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          curl \
-            --fail-with-body \
+          HTTP_CODE=$(curl \
             --silent \
             --show-error \
+            --write-out "%{http_code}" \
             -X POST \
             -H "Authorization: Bearer $IG_ACCESS_TOKEN" \
             --data-urlencode "creation_id=$CONTAINER_ID" \
             "https://graph.instagram.com/$IG_API_VERSION/$IG_USER_ID/media_publish" \
-            -o /tmp/published.json
+            -o /tmp/published.json)
 
+          echo "HTTP status: $HTTP_CODE"
+          echo "Meta response:"
           cat /tmp/published.json
+          echo
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "❌ Instagram publish request failed."
+            exit 1
+          fi
 
           MEDIA_ID=$(jq -r '.id // empty' /tmp/published.json)
 
