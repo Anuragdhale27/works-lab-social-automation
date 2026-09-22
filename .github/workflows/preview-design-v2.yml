@@ -1,0 +1,36 @@
+name: Preview Design V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Generate preview pack
+        run: |
+          python scripts/preview_designs.py
+
+      - name: Upload preview pack
+        uses: actions/upload-artifact@v7
+        with:
+          name: works-lab-design-v2-preview
+          path: preview/
+          if-no-files-found: error
+          retention-days: 7
