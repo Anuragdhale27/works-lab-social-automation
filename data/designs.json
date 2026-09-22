@@ -1,0 +1,22 @@
+{
+  "backgrounds": [
+    "aurora",
+    "paper",
+    "midnight_grid",
+    "soft_blobs",
+    "bold_blocks",
+    "skyprint",
+    "mono_editorial",
+    "neon_frame"
+  ],
+  "layouts": [
+    "editorial",
+    "split",
+    "poster",
+    "card_stack",
+    "tip",
+    "quote",
+    "product",
+    "minimal"
+  ]
+}
