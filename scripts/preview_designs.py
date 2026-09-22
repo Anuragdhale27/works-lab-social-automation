@@ -2,7 +2,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import json
 
-from generate_ad import make_ad
+from generate_ad import THEMES, normalize, render
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS = ROOT / "data" / "hooks.json"
@@ -13,45 +13,39 @@ OUT.mkdir(exist_ok=True)
 
 items = json.loads(HOOKS.read_text(encoding="utf-8"))
 cfg = json.loads(DESIGNS.read_text(encoding="utf-8"))
-template = sorted(TEMPLATES.glob("*.png"))[0]
-item = items[0]
+templates = sorted(TEMPLATES.glob("*.png"))
+
+if not items:
+    raise ValueError("No content entries found.")
+if not templates:
+    raise FileNotFoundError("No resume templates found.")
 
 previews = []
-
-# Compare every layout using one consistent background.
-for layout in cfg["layouts"]:
-    path = OUT / f"layout-{layout}.jpg"
-    make_ad(item, template, "midnight", layout, path)
-    previews.append(path)
-
-# Compare every background using one consistent layout.
-for bg in cfg["backgrounds"]:
-    path = OUT / f"background-{bg}.jpg"
-    make_ad(item, template, bg, "editorial", path)
-    previews.append(path)
+for i, name in enumerate(cfg["rotation"]):
+    item = normalize(items[i % len(items)])
+    template = templates[(i * 2) % len(templates)]
+    path = OUT / f"theme-{i+1:02d}-{name}.jpg"
+    render(item, template, name).save(path, quality=95, optimize=True)
+    previews.append((path, name, item["hook"]))
 
 thumb_w, thumb_h = 360, 360
-label_h = 42
+label_h = 58
 cols = 3
 rows = (len(previews) + cols - 1) // cols
-sheet = Image.new("RGB", (cols * thumb_w, rows * (thumb_h + label_h)), "white")
+sheet = Image.new("RGB", (cols*thumb_w, rows*(thumb_h+label_h)), "white")
 draw = ImageDraw.Draw(sheet)
-label_font = ImageFont.truetype(
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 17
-)
+font = ImageFont.truetype("/usr/share/fonts/opentype/inter/InterDisplay-Bold.otf", 16)
+small = ImageFont.truetype("/usr/share/fonts/opentype/inter/InterDisplay-Medium.otf", 12)
 
-for i, path in enumerate(previews):
-    img = Image.open(path).convert("RGB")
-    img.thumbnail((thumb_w - 12, thumb_h - 12), Image.Resampling.LANCZOS)
-    cell = Image.new("RGB", (thumb_w, thumb_h), (242, 242, 242))
-    x = (thumb_w - img.width) // 2
-    y = (thumb_h - img.height) // 2
-    cell.paste(img, (x, y))
-    cx = (i % cols) * thumb_w
-    cy = (i // cols) * (thumb_h + label_h)
-    sheet.paste(cell, (cx, cy))
-    name = path.stem.replace("-", " ").upper()
-    draw.text((cx + 12, cy + thumb_h + 10), name, fill=(25, 25, 30), font=label_font)
+for i,(path,name,hook) in enumerate(previews):
+    im = Image.open(path).convert("RGB")
+    im.thumbnail((thumb_w-8,thumb_h-8),Image.Resampling.LANCZOS)
+    x = (i%cols)*thumb_w
+    y = (i//cols)*(thumb_h+label_h)
+    sheet.paste(im,(x+(thumb_w-im.width)//2,y+(thumb_h-im.height)//2))
+    draw.text((x+10,y+thumb_h+8),name.upper(),font=font,fill=(20,20,25))
+    short = hook if len(hook) <= 42 else hook[:39] + "..."
+    draw.text((x+10,y+thumb_h+31),short,font=small,fill=(90,90,96))
 
-sheet.save(OUT / "design-v2-contact-sheet.jpg", quality=94, optimize=True)
-print(f"Created {len(previews)} previews plus contact sheet.")
+sheet.save(OUT / "design-v2-contact-sheet.jpg", quality=95, optimize=True)
+print(f"Created {len(previews)} full-size theme previews and contact sheet.")

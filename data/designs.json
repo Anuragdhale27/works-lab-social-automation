@@ -1,22 +1,15 @@
 {
-  "backgrounds": [
-    "aurora",
-    "paper",
-    "midnight_grid",
-    "soft_blobs",
-    "bold_blocks",
-    "skyprint",
-    "mono_editorial",
-    "neon_frame"
+  "rotation": [
+    "electric",
+    "cream_red",
+    "neo_mint",
+    "cobalt",
+    "sunset_purple",
+    "paper_ink",
+    "violet_pop",
+    "lime_black",
+    "sky_editorial",
+    "mono_red"
   ],
-  "layouts": [
-    "editorial",
-    "split",
-    "poster",
-    "card_stack",
-    "tip",
-    "quote",
-    "product",
-    "minimal"
-  ]
+  "goal": "Rotate coordinated backgrounds, typography systems, composition styles and resume placements so consecutive posts do not look like the same template."
 }
