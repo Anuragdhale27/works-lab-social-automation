@@ -362,14 +362,31 @@ def render(item, template, concept_name, variant=0):
         price(d, theme, 60, 930)
 
     elif concept_name == "product_hero":
-        d.text((62, 132), "TEMPLATE DROP", font=F(theme, 15, True), fill=theme["accent"])
-        hf, ht = fit(d, item["hook"], 920, 165, 64, 40, theme, True, 7)
+        # Product-first composition: the actual resume is the hero.
+        d.text((62, 132), "WORKS LAB / TEMPLATE 05", font=F(theme, 15, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 920, 145, 62, 38, theme, True, 7)
         d.multiline_text((62, 168), ht, font=hf, fill=theme["ink"], spacing=8)
-        resume_card(img, template, (260, 350, 820, 790), -2, label="EDITABLE ATS TEMPLATE")
-        benefit_chips(d, item, theme, 90, 805, 530)
-        price(d, theme, 790, 805)
-        draw_cta(d, item, theme, (90, 900, 990, 972))
-        d.text((90, 994), "resume.workslab.in", font=F(theme, 17, False), fill=theme["muted"])
+
+        # Large centered product with a clean showroom treatment.
+        rr(d, (150, 350, 930, 785), 34, (255,255,255,18))
+        resume_card(img, template, (190, 350, 890, 780), -1,
+                    label="EDITABLE ATS-FRIENDLY RESUME")
+
+        # Feature strip beneath the product.
+        parts = [p.strip() for p in str(item["value"]).split("•") if p.strip()][:3]
+        chip_x = 70
+        for part in parts:
+            pf, pt = fit(d, part, 270, 38, 18, 13, theme, True, 4)
+            tw = text_width(d, pt, pf)
+            bw = min(285, tw + 30)
+            rr(d, (chip_x, 805, chip_x + bw, 854), 20, (255,255,255,28))
+            d.text((chip_x + 15, 819), pt, font=pf, fill=theme["ink"])
+            chip_x += bw + 12
+
+        price(d, theme, 855, 875)
+        draw_cta(d, item, theme, (70, 875, 810, 943))
+        d.text((70, 970), "See all templates → resume.workslab.in",
+               font=F(theme, 18, False), fill=theme["muted"])
 
     elif concept_name == "chat":
         d.text((62, 138), "@WORKSLAB", font=F(theme, 15, True), fill=theme["accent"])
