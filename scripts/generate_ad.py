@@ -161,8 +161,7 @@ def resume_card(base, template, box, angle=0):
 def rich_hook(d,item,theme,x,y,max_w,max_h,size=68):
     f,txt=fit(d,item["hook"],max_w,max_h,size,40,theme,True)
     yy=y
-    lines=txt.split("
-")
+    lines=txt.split("\n")
     for i,line in enumerate(lines):
         bb=d.textbbox((0,0),line,font=f)
         if i==len(lines)-1:
