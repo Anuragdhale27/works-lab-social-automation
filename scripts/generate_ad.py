@@ -389,18 +389,50 @@ def render(item, template, concept_name, variant=0):
                font=F(theme, 18, False), fill=theme["muted"])
 
     elif concept_name == "chat":
-        d.text((62, 138), "@WORKSLAB", font=F(theme, 15, True), fill=theme["accent"])
-        rr(d, (62, 192, 735, 405), 28, (255,255,255,215))
-        d.text((90, 220), "Recruiter", font=F(theme, 14, True), fill=theme["accent"])
-        hf, ht = fit(d, item["hook"], 560, 140, 53, 34, theme, True, 7)
-        d.multiline_text((92, 255), ht, font=hf, fill=theme["ink"], spacing=7)
-        rr(d, (345, 438, 1010, 575), 28, theme["accent"])
-        bf, bt = fit(d, item["body"], 565, 85, 29, 19, theme, False, 5)
-        d.multiline_text((375, 472), bt, font=bf, fill="white", spacing=5)
-        resume_card(img, template, (300, 610, 835, 895), 2)
-        benefit_chips(d, item, theme, 70, 640, 190)
-        draw_cta(d, item, theme, (70, 840, 450, 910))
-        price(d, theme, 820, 840)
+        # Social/chat creative: conversation bubbles + typing indicator + product reveal.
+        d.text((62, 132), "WORKS LAB / DMs", font=F(theme, 15, True), fill=theme["accent"])
+
+        # Chat header
+        rr(d, (62, 172, 1018, 228), 20, (255,255,255,175))
+        d.ellipse((82, 187, 116, 221), fill=theme["accent"])
+        d.text((130, 187), "Recruiter", font=F(theme, 18, True), fill=theme["ink"])
+        d.text((132, 209), "online", font=F(theme, 11, False), fill=theme["muted"])
+
+        # Recruiter message
+        rr(d, (62, 258, 760, 420), 28, (255,255,255,220))
+        d.text((92, 282), "RECRUITER", font=F(theme, 12, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 610, 104, 50, 32, theme, True, 6)
+        d.multiline_text((92, 318), ht, font=hf, fill=theme["ink"], spacing=6)
+
+        # Applicant response
+        rr(d, (330, 452, 1018, 585), 28, theme["accent"])
+        d.text((365, 475), "YOU", font=F(theme, 12, True), fill="white")
+        bf, bt = fit(d, item["body"], 585, 74, 28, 18, theme, False, 5)
+        d.multiline_text((365, 510), bt, font=bf, fill="white", spacing=5)
+
+        # Typing indicator / transition
+        for cx in (96, 113, 130):
+            d.ellipse((cx, 616, cx+9, 625), fill=theme["muted"])
+        d.text((155, 605), "typing…", font=F(theme, 16, False), fill=theme["muted"])
+
+        # Product reveal
+        rr(d, (62, 655, 760, 1000), 34, (255,255,255,215))
+        d.text((92, 680), "SENDING A BETTER VERSION →", font=F(theme, 13, True), fill=theme["accent"])
+        resume_card(img, template, (145, 710, 670, 980), -2,
+                    label="WORKS LAB RESUME")
+
+        # Value chips on the side
+        parts = [p.strip() for p in str(item["value"]).split("•") if p.strip()][:3]
+        chip_y = 680
+        for part in parts:
+            pf, pt = fit(d, part, 230, 38, 17, 13, theme, True, 3)
+            bw = min(240, text_width(d, pt, pf) + 26)
+            rr(d, (790, chip_y, 1018, chip_y + 48), 18, (255,255,255,210))
+            d.text((805, chip_y + 13), pt, font=pf, fill=theme["ink"])
+            chip_y += 61
+
+        draw_cta(d, item, theme, (790, 875, 1018, 943))
+        price(d, theme, 790, 958)
 
     elif concept_name == "sticker":
         d.text((62, 130), "FRESH TEMPLATE ENERGY", font=F(theme, 17, True), fill=theme["accent"])
