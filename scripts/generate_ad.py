@@ -368,7 +368,7 @@ def render(item, template, concept_name, variant=0):
         ]:
             rr(d, box, 18, theme["accent"])
             f = F(theme, 18, True)
-            d.text((box[0]+16, box[1]+20), text, font=f, fill="white" if sum(theme["bg"]) < 170 else theme["ink"])
+            d.text((box[0]+16, box[1]+20), text, font=f, fill="white")
         hf, ht = fit(d, item["hook"], 870, 140, 58, 36, theme, True, 7)
         d.multiline_text((65, 800), ht, font=hf, fill=theme["ink"], spacing=7)
         draw_cta(d, item, theme, (65, 925, 600, 992))
@@ -391,7 +391,7 @@ def render(item, template, concept_name, variant=0):
         price(d, theme, 575, 945)
 
     elif concept_name == "question":
-        d.text((62, 132), "BE HONEST 👀", font=F(theme, 18, True), fill=theme["accent"])
+        d.text((62, 132), "BE HONEST", font=F(theme, 18, True), fill=theme["accent"])
         hf, ht = fit(d, item["hook"], 920, 225, 82, 45, theme, True, 7)
         d.multiline_text((62, 178), ht, font=hf, fill=theme["ink"], spacing=8)
         resume_card(img, template, (330, 430, 760, 735), 1)
