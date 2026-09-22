@@ -2,6 +2,12 @@ name: Preview Design V2
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to preview"
+        required: true
+        default: "design-v2"
+        type: string
 
 permissions:
   contents: read
@@ -11,8 +17,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout selected branch
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -22,6 +30,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Validate Python files
+        run: |
+          python -m py_compile scripts/generate_ad.py scripts/preview_designs.py
 
       - name: Generate preview pack
         run: |
