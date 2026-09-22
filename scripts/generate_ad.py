@@ -24,18 +24,33 @@ def rr(d, box, radius, fill, outline=None, width=1):
     d.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
 
 
+def wrap_to_width(draw, text, font, max_w):
+    words = " ".join(text.split()).split(" ")
+    lines, current = [], ""
+    for word in words:
+        candidate = word if not current else current + " " + word
+        box = draw.textbbox((0, 0), candidate, font=font)
+        if box[2] - box[0] <= max_w:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return "\n".join(lines)
+
+
 def fit(draw, text, max_w, max_h, start, minimum, bold=False, chars=24):
     path = FONT_BOLD if bold else FONT_REG
-    text = " ".join(text.split())
     for size in range(start, minimum - 1, -2):
-        wrapped = textwrap.fill(text, width=chars)
         f = F(path, size)
+        wrapped = wrap_to_width(draw, text, f, max_w)
         b = draw.multiline_textbbox((0, 0), wrapped, font=f, spacing=8)
         if b[2] - b[0] <= max_w and b[3] - b[1] <= max_h:
             return f, wrapped
-        chars += 1
     f = F(path, minimum)
-    return f, textwrap.fill(text, width=chars)
+    return f, wrap_to_width(draw, text, f, max_w)
 
 
 def gradient(top, bottom):
