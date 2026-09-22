@@ -221,7 +221,7 @@ def resume_card(base, template, box, angle=0, grayscale=False, label=None):
 
     x = box[0] + max(0, (mw - out.width) // 2)
     y = box[1] + max(0, (mh - out.height) // 2)
-    base.alpha_composite(out, (x, y))
+    base.paste(out.convert("RGBA"), (x, y), out.convert("RGBA"))
 
 
 def hook_highlight(d, item, theme, x, y, max_w, max_h, size):
