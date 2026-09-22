@@ -171,9 +171,12 @@ def price(d, theme, x, y):
     dark = sum(theme["bg"]) < 170
     fill = (255, 255, 255) if dark else theme["ink"]
     fg = theme["ink"] if dark else (255, 255, 255)
-    rr(d, (x, y, x + 180, y + 62), 30, fill)
-    d.text((x + 22, y + 12), "₹149", font=F(theme, 28, True), fill=fg)
-    d.text((x + 77, y + 20), "ATS", font=F(theme, 11, True), fill=fg)
+    rr(d, (x, y, x + 164, y + 56), 28, fill)
+    f = F(theme, 25, True)
+    label = "₹149"
+    bb = d.textbbox((0, 0), label, font=f)
+    tw = bb[2] - bb[0]
+    d.text((x + (164 - tw)//2, y + 12), label, font=f, fill=fg)
 
 
 def draw_cta(d, item, theme, box):
@@ -187,6 +190,33 @@ def draw_cta(d, item, theme, box):
         ((box[0] + box[2] - tw) // 2, (box[1] + box[3] - th) // 2 - 2),
         t, font=f, fill="white", spacing=4, align="center"
     )
+
+
+
+def draw_generic_resume(base, box, theme):
+    x1, y1, x2, y2 = box
+    w, h = x2 - x1, y2 - y1
+    card = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    cd = ImageDraw.Draw(card, "RGBA")
+    rr(cd, (10, 10, w-10, h-10), 18, (255,255,255,245))
+    cd.rectangle((28, 32, w-28, 76), fill=(232,232,232,255))
+    cd.ellipse((38, 88, 108, 158), fill=(205,205,205,255))
+    cd.rectangle((124, 92, w-38, 105), fill=(190,190,190,255))
+    cd.rectangle((124, 116, w-85, 127), fill=(215,215,215,255))
+    for yy in range(185, h-45, 34):
+        cd.rectangle((38, yy, int(w*0.62), yy+9), fill=(215,215,215,255))
+        cd.rectangle((int(w*0.67), yy, w-38, yy+9), fill=(226,226,226,255))
+    cd.rectangle((38, 170, int(w*0.45), 182), fill=(170,170,170,255))
+    out = Image.new("RGBA", base.size, (0,0,0,0))
+    shadow = Image.new("RGBA", card.size, (0,0,0,0))
+    sd = ImageDraw.Draw(shadow, "RGBA")
+    rr(sd, (10,18,w-10,h-10), 18, (0,0,0,70))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(9))
+    out.alpha_composite(shadow, (x1,y1))
+    out.alpha_composite(card, (x1,y1))
+    d = ImageDraw.Draw(out, "RGBA")
+    d.text((x1+22, y2+6), "BEFORE • GENERIC FORMAT", font=F(theme, 12, True), fill=theme["muted"])
+    base.alpha_composite(out)
 
 
 def resume_card(base, template, box, angle=0, grayscale=False, label=None):
@@ -288,7 +318,7 @@ def render(item, template, concept_name, variant=0):
         d.text((62, 135), "BEFORE → AFTER", font=F(theme, 16, True), fill=theme["accent"])
         hf, ht = fit(d, item["hook"], 930, 150, 60, 38, theme, True, 8)
         d.multiline_text((62, 168), ht, font=hf, fill=theme["ink"], spacing=8)
-        resume_card(img, template, (78, 370, 475, 820), -5, grayscale=True, label="BEFORE")
+        draw_generic_resume(img, (78, 370, 475, 820), theme)
         resume_card(img, template, (560, 330, 980, 820), 5, grayscale=False, label="AFTER")
         d.line((480, 575, 575, 575), fill=theme["accent"], width=6)
         d.polygon([(565, 555), (595, 575), (565, 595)], fill=theme["accent"])
