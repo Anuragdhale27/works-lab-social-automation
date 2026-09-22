@@ -1,6 +1,7 @@
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import json, textwrap
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
+import json
+import textwrap
 from datetime import date
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,9 +13,7 @@ OUTPUT.mkdir(exist_ok=True)
 
 W = H = 1080
 
-# Ubuntu GitHub-hosted runners reliably include DejaVu fonts.
-# Keep all typography self-contained so the workflow does not depend on
-# optional system font packages such as Inter/Lato/Noto.
+# Runner-safe fonts available on Ubuntu GitHub Actions.
 FONTS = {
     "sans": {
         "bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -30,35 +29,87 @@ FONTS = {
     },
 }
 
-THEMES = {
-    "electric": {"bg": (10,15,27), "accent": (255,84,145), "ink": (249,251,255), "muted": (181,191,207), "font": "sans", "layout": "bold_left", "dark": True},
-    "cream_red": {"bg": (249,243,232), "accent": (221,61,57), "ink": (28,28,31), "muted": (91,86,80), "font": "serif", "layout": "magazine", "dark": False},
-    "neo_mint": {"bg": (226,247,239), "accent": (8,126,99), "ink": (16,39,33), "muted": (72,101,93), "font": "sans", "layout": "sticker", "dark": False},
-    "cobalt": {"bg": (231,239,255), "accent": (33,84,220), "ink": (12,22,48), "muted": (71,86,112), "font": "sans", "layout": "browser", "dark": False},
-    "sunset_purple": {"bg": (55,30,79), "accent": (255,173,70), "ink": (255,248,239), "muted": (220,205,230), "font": "sans", "layout": "split", "dark": True},
-    "paper_ink": {"bg": (245,241,232), "accent": (30,31,34), "ink": (22,22,24), "muted": (92,89,84), "font": "condensed", "layout": "ticket", "dark": False},
-    "violet_pop": {"bg": (239,229,255), "accent": (117,65,235), "ink": (30,18,55), "muted": (90,77,118), "font": "sans", "layout": "chat", "dark": False},
-    "lime_black": {"bg": (199,244,81), "accent": (14,17,17), "ink": (14,17,17), "muted": (43,48,38), "font": "condensed", "layout": "poster", "dark": False},
-    "sky_editorial": {"bg": (218,237,246), "accent": (17,88,148), "ink": (15,33,43), "muted": (70,96,108), "font": "serif", "layout": "highlighter", "dark": False},
-    "mono_red": {"bg": (27,27,28), "accent": (235,50,72), "ink": (250,250,250), "muted": (170,170,174), "font": "sans", "layout": "minimal", "dark": True},
+CONCEPTS = {
+    "giant_type": {
+        "bg": (12, 16, 27), "accent": (255, 82, 145),
+        "ink": (250, 252, 255), "muted": (181, 191, 207),
+        "font": "sans",
+    },
+    "before_after": {
+        "bg": (247, 243, 236), "accent": (220, 60, 54),
+        "ink": (28, 29, 32), "muted": (95, 90, 84),
+        "font": "serif",
+    },
+    "phone": {
+        "bg": (226, 239, 255), "accent": (37, 86, 214),
+        "ink": (12, 24, 52), "muted": (78, 94, 118),
+        "font": "sans",
+    },
+    "career_tip": {
+        "bg": (229, 248, 239), "accent": (8, 126, 99),
+        "ink": (15, 43, 34), "muted": (74, 103, 94),
+        "font": "sans",
+    },
+    "product_hero": {
+        "bg": (57, 31, 83), "accent": (255, 174, 73),
+        "ink": (255, 249, 240), "muted": (221, 208, 230),
+        "font": "sans",
+    },
+    "chat": {
+        "bg": (239, 230, 255), "accent": (116, 65, 236),
+        "ink": (31, 19, 55), "muted": (93, 79, 119),
+        "font": "sans",
+    },
+    "sticker": {
+        "bg": (199, 244, 82), "accent": (15, 18, 18),
+        "ink": (15, 18, 18), "muted": (53, 56, 43),
+        "font": "condensed",
+    },
+    "xray": {
+        "bg": (239, 236, 225), "accent": (23, 89, 148),
+        "ink": (16, 31, 43), "muted": (75, 91, 101),
+        "font": "serif",
+    },
+    "question": {
+        "bg": (28, 28, 30), "accent": (235, 52, 75),
+        "ink": (250, 250, 250), "muted": (175, 175, 180),
+        "font": "sans",
+    },
+    "magazine": {
+        "bg": (247, 241, 232), "accent": (31, 31, 33),
+        "ink": (24, 24, 25), "muted": (91, 88, 83),
+        "font": "serif",
+    },
 }
+
+CONCEPT_IDS = [
+    "giant_type", "before_after", "phone", "career_tip", "product_hero",
+    "chat", "sticker", "xray", "question", "magazine",
+]
 
 
 def F(theme, size, bold=True):
-    path = FONTS[theme["font"]]["bold" if bold else "regular"]
-    return ImageFont.truetype(path, size)
+    return ImageFont.truetype(
+        FONTS[theme["font"]]["bold" if bold else "regular"], size
+    )
 
 
 def rr(d, box, radius, fill, outline=None, width=1):
     d.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
 
 
-def wrap_by_pixels(draw, text, f, max_w):
+def text_width(draw, text, font):
+    b = draw.textbbox((0, 0), text, font=font)
+    return b[2] - b[0]
+
+
+def wrap_pixels(draw, text, f, max_w):
     words = " ".join(str(text or "").split()).split()
-    lines, current = [], ""
+    lines = []
+    current = ""
     for word in words:
         candidate = word if not current else current + " " + word
-        if draw.textbbox((0,0), candidate, font=f)[2] <= max_w:
+        if text_width(draw, candidate, f) <= max_w:
             current = candidate
         else:
             if current:
@@ -66,278 +117,344 @@ def wrap_by_pixels(draw, text, f, max_w):
             current = word
     if current:
         lines.append(current)
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
-def fit(draw, text, max_w, max_h, start, minimum, theme, bold=True):
+def fit(draw, text, max_w, max_h, start, minimum, theme, bold=True, spacing=7):
     for size in range(start, minimum - 1, -2):
         f = F(theme, size, bold)
-        wrapped = wrap_by_pixels(draw, text, f, max_w)
-        bb = draw.multiline_textbbox((0,0), wrapped, font=f, spacing=max(5, size//8))
-        if bb[2] - bb[0] <= max_w and bb[3] - bb[1] <= max_h:
+        wrapped = wrap_pixels(draw, text, f, max_w)
+        b = draw.multiline_textbbox((0, 0), wrapped, font=f, spacing=spacing)
+        if (b[2] - b[0]) <= max_w and (b[3] - b[1]) <= max_h:
             return f, wrapped
     f = F(theme, minimum, bold)
-    return f, wrap_by_pixels(draw, text, f, max_w)
+    return f, wrap_pixels(draw, text, f, max_w)
 
 
-def gradient(top, bottom):
-    img = Image.new("RGB", (W,H))
-    px = img.load()
-    for y in range(H):
-        t = y / (H-1)
-        c = tuple(int(top[i]*(1-t)+bottom[i]*t) for i in range(3))
-        for x in range(W):
-            px[x,y] = c
-    return img
+def multiline_h(draw, text, f, spacing=7):
+    b = draw.multiline_textbbox((0, 0), text, font=f, spacing=spacing)
+    return b[3] - b[1]
 
 
-def background(theme):
-    img = Image.new("RGB", (W,H), theme["bg"])
+def base_background(theme, variant):
+    img = Image.new("RGB", (W, H), theme["bg"])
     d = ImageDraw.Draw(img, "RGBA")
-    layout = theme["layout"]
 
-    if layout in {"bold_left","minimal"}:
-        for x in range(0,W,72): d.line((x,0,x,H), fill=(255,255,255,14), width=1)
-        for y in range(0,H,72): d.line((0,y,W,y), fill=(255,255,255,14), width=1)
+    if theme["font"] == "serif":
+        for i in range(8):
+            y = 150 + i * 105
+            d.line((70, y, 1000, y), fill=(*theme["accent"], 24), width=1)
+    else:
+        for i in range(9):
+            x = 65 + i * 120
+            d.line((x, 90, x, 1005), fill=(255, 255, 255, 11), width=1)
 
-    if layout == "magazine":
-        d.ellipse((660,-160,1200,380), fill=(*theme["accent"],42))
-        d.ellipse((-140,760,260,1160), fill=(255,255,255,20))
-    elif layout == "sticker":
-        d.ellipse((-150,600,380,1160), fill=(255,255,255,80))
-        d.ellipse((770,-140,1200,330), fill=(255,255,255,100))
-    elif layout == "browser":
-        d.polygon([(0,0),(1080,0),(1080,420),(0,700)], fill=(255,255,255,60))
-        for x in range(0,W,120): d.line((x,0,x,H), fill=(*theme["accent"],12), width=1)
-    elif layout == "split":
-        d.polygon([(0,0),(1080,0),(1080,640),(270,1080),(0,1080)], fill=(116,74,182,95))
-        d.ellipse((700,50,1150,500), fill=(*theme["accent"],35))
-    elif layout == "ticket":
-        for y in (70,1012): d.line((70,y,1010,y), fill=(*theme["accent"],170), width=2)
-        for x in range(82,1010,28): d.ellipse((x-2,998,x+2,1002), fill=(*theme["accent"],150))
-    elif layout == "chat":
-        for y in range(115,980,92): d.rounded_rectangle((760,y,1010,y+42),21,fill=(*theme["accent"],30))
-    elif layout == "poster":
-        d.polygon([(760,0),(1080,0),(1080,1080),(545,1080)], fill=(255,255,255,48))
-    elif layout == "highlighter":
-        d.ellipse((750,0,1210,460), fill=(255,255,255,105))
-        d.rectangle((60,515,1015,585), fill=(*theme["accent"],25))
+    # Variant changes the decorative anchor so repeated concepts don't look identical.
+    if variant == 0:
+        d.ellipse((790, -120, 1210, 300), fill=(*theme["accent"], 42))
+    elif variant == 1:
+        d.ellipse((-150, 720, 360, 1210), fill=(*theme["accent"], 34))
+        d.polygon([(0, 0), (300, 0), (0, 300)], fill=(255, 255, 255, 14))
+    else:
+        d.ellipse((-180, -120, 340, 380), fill=(*theme["accent"], 30))
+        d.ellipse((780, 760, 1210, 1180), fill=(255, 255, 255, 15))
+
     return img
 
 
 def logo(d, theme):
-    d.text((60,40),"WORKS LAB",font=F(theme,27,True),fill=theme["ink"])
-    d.text((60,73),"RESUME TEMPLATES",font=F(theme,16,False),fill=theme["muted"])
+    d.text((58, 38), "WORKS LAB", font=F(theme, 27, True), fill=theme["ink"])
+    d.text((58, 72), "RESUME TEMPLATES", font=F(theme, 16, False), fill=theme["muted"])
 
 
-def price_badge(d, theme, x, y):
-    fill = (255,255,255) if theme["dark"] else theme["ink"]
-    txt = theme["ink"] if theme["dark"] else (255,255,255)
-    rr(d,(x,y,x+174,y+58),29,fill)
-    d.text((x+22,y+12),"₹149",font=F(theme,25,True),fill=txt)
-    d.text((x+73,y+19),"ATS TEMPLATES",font=F(theme,10,True),fill=txt)
+def price(d, theme, x, y):
+    dark = sum(theme["bg"]) < 170
+    fill = (255, 255, 255) if dark else theme["ink"]
+    fg = theme["ink"] if dark else (255, 255, 255)
+    rr(d, (x, y, x + 180, y + 62), 30, fill)
+    d.text((x + 22, y + 12), "₹149", font=F(theme, 28, True), fill=fg)
+    d.text((x + 77, y + 20), "ATS", font=F(theme, 11, True), fill=fg)
 
 
-def resume_card(base, template, box, angle=0):
+def draw_cta(d, item, theme, box):
+    rr(d, box, 24, theme["accent"])
+    max_w = box[2] - box[0] - 36
+    max_h = box[3] - box[1] - 10
+    f, t = fit(d, item["cta"], max_w, max_h, 24, 17, theme, True, 4)
+    b = d.multiline_textbbox((0, 0), t, font=f, spacing=4)
+    tw, th = b[2] - b[0], b[3] - b[1]
+    d.multiline_text(
+        ((box[0] + box[2] - tw) // 2, (box[1] + box[3] - th) // 2 - 2),
+        t, font=f, fill="white", spacing=4, align="center"
+    )
+
+
+def resume_card(base, template, box, angle=0, grayscale=False, label=None):
     t = Image.open(template).convert("RGBA")
-    mw,mh=box[2]-box[0],box[3]-box[1]
-    t.thumbnail((mw-36,mh-36),Image.Resampling.LANCZOS)
-    card=Image.new("RGBA",(t.width+46,t.height+62),(0,0,0,0))
-    shadow=Image.new("RGBA",card.size,(0,0,0,0))
-    sd=ImageDraw.Draw(shadow)
-    rr(sd,(9,16,t.width+37,t.height+50),20,(0,0,0,95))
-    shadow=shadow.filter(ImageFilter.GaussianBlur(11))
-    cd=ImageDraw.Draw(card)
-    rr(cd,(8,8,t.width+38,t.height+46),20,(255,255,255,248))
-    cd.text((24,t.height+21),"EDITABLE RESUME TEMPLATE",font=F(THEMES["paper_ink"],11,True),fill=(55,58,64))
-    card.alpha_composite(t,(21,21))
-    out=Image.new("RGBA",card.size,(0,0,0,0))
-    out.alpha_composite(shadow); out.alpha_composite(card)
-    if angle: out=out.rotate(angle,expand=True,resample=Image.Resampling.BICUBIC)
-    x=box[0]+max(0,(mw-out.width)//2); y=box[1]+max(0,(mh-out.height)//2)
-    base.alpha_composite(out,(x,y))
+    if grayscale:
+        gray = ImageOps.grayscale(t).convert("RGBA")
+        t = gray
+
+    mw, mh = box[2] - box[0], box[3] - box[1]
+    t.thumbnail((mw - 34, mh - 54), Image.Resampling.LANCZOS)
+
+    card = Image.new("RGBA", (t.width + 44, t.height + 62), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", card.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(shadow)
+    rr(sd, (8, 15, t.width + 36, t.height + 45), 20, (0, 0, 0, 95))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(10))
+
+    cd = ImageDraw.Draw(card)
+    rr(cd, (8, 8, t.width + 36, t.height + 44), 20, (255, 255, 255, 250))
+    card.alpha_composite(t, (22, 20))
+
+    if label:
+        lf = ImageFont.truetype(FONTS["sans"]["bold"], 12)
+        cd.text((22, t.height + 23), label, font=lf, fill=(55, 58, 64))
+
+    out = Image.new("RGBA", card.size, (0, 0, 0, 0))
+    out.alpha_composite(shadow)
+    out.alpha_composite(card)
+
+    if angle:
+        out = out.rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
+
+    x = box[0] + max(0, (mw - out.width) // 2)
+    y = box[1] + max(0, (mh - out.height) // 2)
+    base.alpha_composite(out, (x, y))
 
 
-def rich_hook(d,item,theme,x,y,max_w,max_h,size=68):
-    f,txt=fit(d,item["hook"],max_w,max_h,size,40,theme,True)
-    yy=y
-    lines=txt.split("\n")
-    for i,line in enumerate(lines):
-        bb=d.textbbox((0,0),line,font=f)
-        if i==len(lines)-1:
-            d.rounded_rectangle((x-6,yy+bb[3]-5,x+(bb[2]-bb[0])+10,yy+bb[3]+7),radius=8,fill=theme["accent"])
-        d.text((x,yy),line,font=f,fill=theme["ink"])
-        yy+=(bb[3]-bb[1])+10
+def hook_highlight(d, item, theme, x, y, max_w, max_h, size):
+    f, txt = fit(d, item["hook"], max_w, max_h, size, 40, theme, True, 7)
+    lines = txt.split("\n")
+    yy = y
+    for i, line in enumerate(lines):
+        b = d.textbbox((0, 0), line, font=f)
+        if i == len(lines) - 1:
+            d.rounded_rectangle(
+                (x - 6, yy + b[3] - 5, x + (b[2] - b[0]) + 10, yy + b[3] + 7),
+                radius=8, fill=theme["accent"]
+            )
+        d.text((x, yy), line, font=f, fill=theme["ink"])
+        yy += (b[3] - b[1]) + 9
     return yy
 
 
-def body_value(d,item,theme,x,y,max_w,body_h,value_h=112):
-    bf,bt=fit(d,item["body"],max_w,body_h,30,19,theme,False)
-    d.multiline_text((x,y),bt,font=bf,fill=theme["muted"],spacing=6)
-    bh=d.multiline_textbbox((0,0),bt,font=bf,spacing=6)[3]
-    vy=y+bh+18
-    bg=(255,255,255,26) if theme["dark"] else (255,255,255,205)
-    rr(d,(x,vy,x+max_w,vy+value_h),20,bg)
-    d.text((x+16,vy+12),"WHAT YOU GET",font=F(theme,13,True),fill=theme["accent"])
-    parts=[p.strip() for p in str(item["value"]).split("•") if p.strip()]
-    chip_x=x+14; chip_y=vy+43
+def body_text(d, item, theme, x, y, max_w, max_h):
+    f, t = fit(d, item["body"], max_w, max_h, 29, 18, theme, False, 6)
+    d.multiline_text((x, y), t, font=f, fill=theme["muted"], spacing=6)
+    return y + multiline_h(d, t, f, 6)
+
+
+def benefit_chips(d, item, theme, x, y, max_w):
+    parts = [p.strip() for p in str(item["value"]).split("•") if p.strip()]
+    chip_x = x
+    chip_y = y
+    accent = theme["accent"]
+
     for part in parts[:3]:
-        pf,pt=fit(d,part,min(max_w-28,220),value_h-52,18,14,theme,False)
-        bw=d.multiline_textbbox((0,0),pt,font=pf,spacing=4)[2]+24
-        if chip_x+bw>x+max_w-14:
-            chip_x=x+14; chip_y+=38
-        rr(d,(chip_x,chip_y,min(chip_x+bw,x+max_w-14),chip_y+34),17,
-           (*theme["accent"],32) if theme["dark"] else (240,242,246,230))
-        d.text((chip_x+12,chip_y+9),pt,font=pf,fill=theme["ink"])
-        chip_x+=bw+8
-    return vy+value_h
+        pf, pt = fit(d, part, min(215, max_w - 30), 32, 18, 13, theme, False, 3)
+        tw = text_width(d, pt, pf)
+        bw = min(215, tw + 24)
+        if chip_x + bw > x + max_w:
+            chip_x = x
+            chip_y += 41
+        rr(
+            d, (chip_x, chip_y, chip_x + bw, chip_y + 34), 17,
+            (*accent, 35) if sum(theme["bg"]) < 170 else (255, 255, 255, 210)
+        )
+        d.text((chip_x + 12, chip_y + 8), pt, font=pf, fill=theme["ink"])
+        chip_x += bw + 8
+
+    return chip_y + 36
 
 
-def cta(d,item,theme,box):
-    rr(d,box,26,theme["accent"])
-    f,t=fit(d,item["cta"],box[2]-box[0]-36,box[3]-box[1]-12,24,17,theme,True)
-    bb=d.multiline_textbbox((0,0),t,font=f,spacing=3)
-    tw,th=bb[2]-bb[0],bb[3]-bb[1]
-    d.multiline_text(((box[0]+box[2]-tw)//2,(box[1]+box[3]-th)//2),t,font=f,fill="white",spacing=3,align="center")
+def render(item, template, concept_name, variant=0):
+    theme = CONCEPTS[concept_name]
+    img = base_background(theme, variant)
+    d = ImageDraw.Draw(img, "RGBA")
+    logo(d, theme)
 
+    if concept_name == "giant_type":
+        d.text((58, 132), "RESUME PROBLEM", font=F(theme, 15, True), fill=theme["accent"])
+        y = hook_highlight(d, item, theme, 58, 168, 510, 300, 78)
+        y = body_text(d, item, theme, 58, y + 18, 470, 95)
+        benefit_chips(d, item, theme, 58, 575, 485)
+        draw_cta(d, item, theme, (58, 845, 545, 918))
+        price(d, theme, 58, 940)
+        resume_card(img, template, (610, 160, 1030, 930), -6)
 
-def normalize(item):
-    out=dict(item or {})
-    out["hook"]=out.get("hook","A better resume starts here.")
-    out["body"]=out.get("body",out.get("sub","Start with a clean professional format."))
-    out["value"]=out.get("value","Easy to edit • Clean structure • Professional look")
-    out["cta"]=out.get("cta","Get yours — ₹149")
-    return out
+    elif concept_name == "before_after":
+        d.text((62, 135), "BEFORE → AFTER", font=F(theme, 16, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 930, 150, 60, 38, theme, True, 8)
+        d.multiline_text((62, 168), ht, font=hf, fill=theme["ink"], spacing=8)
+        resume_card(img, template, (78, 370, 475, 820), -5, grayscale=True, label="BEFORE")
+        resume_card(img, template, (560, 330, 980, 820), 5, grayscale=False, label="AFTER")
+        d.line((480, 575, 575, 575), fill=theme["accent"], width=6)
+        d.polygon([(565, 555), (595, 575), (565, 595)], fill=theme["accent"])
+        body_text(d, item, theme, 62, 845, 575, 72)
+        draw_cta(d, item, theme, (650, 845, 1010, 915))
+        price(d, theme, 62, 932)
 
+    elif concept_name == "phone":
+        d.text((58, 138), "RESUME PREVIEW", font=F(theme, 15, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 870, 155, 61, 38, theme, True, 7)
+        d.multiline_text((58, 170), ht, font=hf, fill=theme["ink"], spacing=8)
+        # Phone frame
+        rr(d, (180, 400, 635, 940), 46, (15, 22, 42), outline=theme["accent"], width=4)
+        rr(d, (205, 438, 610, 904), 26, (245, 247, 250))
+        d.ellipse((368, 412, 448, 426), fill=(5, 7, 12))
+        resume_card(img, template, (230, 465, 585, 865), 0)
+        rr(d, (665, 430, 1005, 915), 30, (255, 255, 255, 200))
+        body_text(d, item, theme, 700, 470, 265, 100)
+        benefit_chips(d, item, theme, 700, 600, 260)
+        draw_cta(d, item, theme, (695, 790, 980, 858))
+        price(d, theme, 700, 885)
 
-def render(item,template,theme_name):
-    theme=THEMES[theme_name]
-    item=normalize(item)
-    img=background(theme).convert("RGBA")
-    d=ImageDraw.Draw(img,"RGBA")
-    logo(d,theme)
-    layout=theme["layout"]
+    elif concept_name == "career_tip":
+        d.text((60, 135), "CAREER TIP", font=F(theme, 18, True), fill=theme["accent"])
+        d.ellipse((875, 104, 995, 224), fill=theme["accent"])
+        d.text((902, 129), "01", font=F(theme, 30, True), fill="white")
+        hf, ht = fit(d, item["hook"], 875, 170, 62, 38, theme, True, 7)
+        d.multiline_text((60, 178), ht, font=hf, fill=theme["ink"], spacing=8)
+        d.line((60, 365, 1020, 365), fill=theme["accent"], width=3)
+        body_text(d, item, theme, 60, 397, 515, 110)
+        rr(d, (60, 560, 620, 790), 28, (255,255,255,205))
+        d.text((88, 588), "QUICK CHECKLIST", font=F(theme, 15, True), fill=theme["accent"])
+        parts = [p.strip() for p in str(item["value"]).split("•") if p.strip()]
+        for i, part in enumerate(parts[:3]):
+            yy = 636 + i * 48
+            d.ellipse((90, yy, 116, yy + 26), outline=theme["accent"], width=3)
+            d.text((98, yy + 1), "✓", font=F(theme, 16, True), fill=theme["accent"])
+            d.text((132, yy), part, font=F(theme, 18, False), fill=theme["ink"])
+        resume_card(img, template, (670, 405, 1015, 800), 4)
+        draw_cta(d, item, theme, (60, 835, 620, 905))
+        price(d, theme, 60, 930)
 
-    if layout=="bold_left":
-        rr(d,(60,126,270,165),20,theme["accent"])
-        d.text((77,136),"RESUME PROBLEM",font=F(theme,14,True),fill="white")
-        rich_hook(d,item,theme,60,190,520,260,66)
-        body_value(d,item,theme,60,505,470,85,118)
-        cta(d,item,theme,(60,895,530,965))
-        price_badge(d,theme,60,982)
-        resume_card(img,template,(620,145,1025,900),-4)
-    elif layout=="magazine":
-        d.text((60,135),"CAREER / 01",font=F(theme,16,True),fill=theme["accent"])
-        f,t=fit(d,item["hook"],920,220,72,42,theme,True)
-        d.multiline_text((60,178),t,font=f,fill=theme["ink"],spacing=10)
-        d.line((60,420,1020,420),fill=theme["ink"],width=2)
-        body_value(d,item,theme,60,450,485,86,112)
-        resume_card(img,template,(600,445,1020,905),2)
-        cta(d,item,theme,(60,850,560,922))
-        price_badge(d,theme,60,940)
-    elif layout=="sticker":
-        rr(d,(55,140,1025,1016),42,(255,255,255,200))
-        rr(d,(95,175,325,220),22,theme["accent"])
-        d.text((112,186),"NEW TEMPLATE DROP",font=F(theme,15,True),fill="white")
-        resume_card(img,template,(90,270,555,910),-6)
-        rich_hook(d,item,theme,590,235,390,245,62)
-        body_value(d,item,theme,590,535,375,92,112)
-        cta(d,item,theme,(590,835,965,905))
-        price_badge(d,theme,590,920)
-    elif layout=="browser":
-        rr(d,(55,145,1025,1005),30,(255,255,255,230))
-        rr(d,(75,165,1005,207),18,theme["accent"])
-        for cx in (95,116,137): d.ellipse((cx,181,cx+10,191),fill=(255,255,255,210))
-        resume_card(img,template,(95,260,575,925),0)
-        d.text((620,250),"RESUME CHECK",font=F(theme,16,True),fill=theme["accent"])
-        rich_hook(d,item,theme,620,290,340,245,61)
-        body_value(d,item,theme,620,555,335,90,120)
-        cta(d,item,theme,(620,850,960,920))
-        price_badge(d,theme,620,945)
-    elif layout=="split":
-        d.text((60,145),"YOUR NEXT",font=F(theme,18,True),fill=theme["accent"])
-        d.text((60,180),"APPLICATION",font=F(theme,18,True),fill=theme["ink"])
-        rich_hook(d,item,theme,60,245,500,285,70)
-        body_value(d,item,theme,60,575,455,92,112)
-        cta(d,item,theme,(60,850,515,920))
-        price_badge(d,theme,60,935)
-        resume_card(img,template,(600,170,1025,925),3)
-    elif layout=="ticket":
-        rr(d,(70,140,1010,975),34,(255,255,255,228))
-        d.text((100,178),"WORKS LAB / CAREER KIT",font=F(theme,15,True),fill=theme["accent"])
-        rich_hook(d,item,theme,100,225,840,260,68)
-        body_value(d,item,theme,100,520,840,88,115)
-        resume_card(img,template,(325,650,755,935),0)
-        cta(d,item,theme,(100,885,520,950))
-        price_badge(d,theme,810,885)
-    elif layout=="chat":
-        d.text((70,145),"@WORKSLAB",font=F(theme,15,True),fill=theme["accent"])
-        rr(d,(70,200,740,430),28,(255,255,255,220))
-        rich_hook(d,item,theme,105,235,560,175,58)
-        rr(d,(330,455,1010,580),28,theme["accent"])
-        bf,bt=fit(d,item["body"],610,88,30,19,theme,False)
-        d.multiline_text((372,482),bt,font=bf,fill="white",spacing=6)
-        resume_card(img,template,(305,600,820,915),1)
-        parts=[p.strip() for p in str(item["value"]).split("•") if p.strip()][:3]
-        for i,part in enumerate(parts):
-            rr(d,(70,610+i*57,255,652+i*57),20,(255,255,255,210))
-            pf,pt=fit(d,part,150,28,17,13,theme,False)
-            d.multiline_text((88,620+i*57),pt,font=pf,fill=theme["ink"])
-        cta(d,item,theme,(70,825,430,895))
-        price_badge(d,theme,850,825)
-    elif layout=="poster":
-        d.text((60,145),"01",font=F(theme,106,True),fill=theme["accent"])
-        f,t=fit(d,item["hook"],880,270,80,44,theme,True)
-        d.multiline_text((60,255),t,font=f,fill=theme["ink"],spacing=8)
-        d.line((60,575,1020,575),fill=theme["ink"],width=3)
-        bf,bt=fit(d,item["body"],650,110,29,19,theme,False)
-        d.multiline_text((60,610),bt,font=bf,fill=theme["muted"],spacing=5)
-        resume_card(img,template,(690,600,1015,910),-5)
-        cta(d,item,theme,(60,850,600,920))
-        price_badge(d,theme,820,850)
-        d.text((60,960),"JOB-READY FORMAT  /  EASY TO EDIT",font=F(theme,16,True),fill=theme["accent"])
-    elif layout=="highlighter":
-        d.text((70,145),"A SMALL UPGRADE CAN CHANGE THE WHOLE LOOK.",font=F(theme,14,True),fill=theme["accent"])
-        rich_hook(d,item,theme,70,200,780,270,72)
-        resume_card(img,template,(655,370,1020,820),4)
-        body_value(d,item,theme,70,540,520,88,120)
-        cta(d,item,theme,(70,820,590,890))
-        price_badge(d,theme,70,920)
-    else:
-        d.text((60,145),"WORKS LAB / ₹149",font=F(theme,16,True),fill=theme["accent"])
-        f,t=fit(d,item["hook"],520,260,80,44,theme,True)
-        d.multiline_text((60,190),t,font=f,fill=theme["ink"],spacing=8)
-        d.line((60,505,560,505),fill=theme["accent"],width=5)
-        body_value(d,item,theme,60,540,500,88,118)
-        cta(d,item,theme,(60,805,560,875))
-        price_badge(d,theme,60,915)
-        resume_card(img,template,(650,170,1015,900),2)
+    elif concept_name == "product_hero":
+        d.text((62, 132), "TEMPLATE DROP", font=F(theme, 15, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 920, 165, 64, 40, theme, True, 7)
+        d.multiline_text((62, 168), ht, font=hf, fill=theme["ink"], spacing=8)
+        resume_card(img, template, (260, 350, 820, 790), -2, label="EDITABLE ATS TEMPLATE")
+        benefit_chips(d, item, theme, 90, 805, 530)
+        price(d, theme, 790, 805)
+        draw_cta(d, item, theme, (90, 900, 990, 972))
+        d.text((90, 994), "resume.workslab.in", font=F(theme, 17, False), fill=theme["muted"])
 
-    d.text((60,1035),"resume.workslab.in",font=F(theme,16,False),fill=theme["muted"])
+    elif concept_name == "chat":
+        d.text((62, 138), "@WORKSLAB", font=F(theme, 15, True), fill=theme["accent"])
+        rr(d, (62, 192, 735, 405), 28, (255,255,255,215))
+        d.text((90, 220), "Recruiter", font=F(theme, 14, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 560, 140, 53, 34, theme, True, 7)
+        d.multiline_text((92, 255), ht, font=hf, fill=theme["ink"], spacing=7)
+        rr(d, (345, 438, 1010, 575), 28, theme["accent"])
+        bf, bt = fit(d, item["body"], 565, 85, 29, 19, theme, False, 5)
+        d.multiline_text((375, 472), bt, font=bf, fill="white", spacing=5)
+        resume_card(img, template, (300, 610, 835, 895), 2)
+        benefit_chips(d, item, theme, 70, 640, 190)
+        draw_cta(d, item, theme, (70, 840, 450, 910))
+        price(d, theme, 820, 840)
+
+    elif concept_name == "sticker":
+        d.text((62, 130), "FRESH TEMPLATE ENERGY", font=F(theme, 17, True), fill=theme["accent"])
+        # playful sticker elements
+        rr(d, (55, 175, 315, 235), 30, (255,255,255,220))
+        d.text((80, 193), "FRESHER • JOB SWITCH • RESTART", font=F(theme, 13, True), fill=theme["ink"])
+        resume_card(img, template, (250, 285, 800, 785), -8, label="YOUR NEW RESUME")
+        for box, text in [
+            ((70, 400, 250, 465), "CLEAN"),
+            ((805, 310, 1010, 375), "MODERN"),
+            ((800, 500, 1020, 570), "EDITABLE"),
+        ]:
+            rr(d, box, 18, theme["accent"])
+            f = F(theme, 18, True)
+            d.text((box[0]+16, box[1]+20), text, font=f, fill="white" if sum(theme["bg"]) < 170 else theme["ink"])
+        hf, ht = fit(d, item["hook"], 870, 140, 58, 36, theme, True, 7)
+        d.multiline_text((65, 800), ht, font=hf, fill=theme["ink"], spacing=7)
+        draw_cta(d, item, theme, (65, 925, 600, 992))
+        price(d, theme, 820, 925)
+
+    elif concept_name == "xray":
+        d.text((62, 134), "RESUME X-RAY", font=F(theme, 16, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 930, 160, 62, 40, theme, True, 7)
+        d.multiline_text((62, 170), ht, font=hf, fill=theme["ink"], spacing=8)
+        resume_card(img, template, (70, 400, 520, 900), -3)
+        # magnifier
+        d.ellipse((610, 395, 930, 715), fill=(255,255,255,155), outline=theme["accent"], width=6)
+        d.line((845, 630, 990, 790), fill=theme["accent"], width=18)
+        d.ellipse((675, 455, 845, 625), outline=theme["accent"], width=3)
+        d.text((695, 490), "CLEAR", font=F(theme, 28, True), fill=theme["ink"])
+        d.text((695, 538), "STRUCTURE", font=F(theme, 24, True), fill=theme["ink"])
+        d.text((695, 585), "EASY TO SCAN", font=F(theme, 18, False), fill=theme["muted"])
+        body_text(d, item, theme, 575, 745, 430, 78)
+        draw_cta(d, item, theme, (575, 860, 1010, 930))
+        price(d, theme, 575, 945)
+
+    elif concept_name == "question":
+        d.text((62, 132), "BE HONEST 👀", font=F(theme, 18, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 920, 225, 82, 45, theme, True, 7)
+        d.multiline_text((62, 178), ht, font=hf, fill=theme["ink"], spacing=8)
+        resume_card(img, template, (330, 430, 760, 735), 1)
+        d.text((62, 755), "Would you shortlist this resume?", font=F(theme, 25, True), fill=theme["ink"])
+        rr(d, (62, 815, 300, 885), 24, theme["accent"])
+        d.text((132, 835), "YES ✓", font=F(theme, 22, True), fill="white")
+        rr(d, (320, 815, 605, 885), 24, (255,255,255,35), outline=(255,255,255,100), width=2)
+        d.text((365, 835), "NEEDS WORK", font=F(theme, 19, True), fill=theme["ink"])
+        draw_cta(d, item, theme, (660, 815, 1010, 885))
+        price(d, theme, 62, 915)
+
+    else:  # magazine
+        d.text((62, 132), "CAREER / EDITORIAL", font=F(theme, 15, True), fill=theme["accent"])
+        hf, ht = fit(d, item["hook"], 920, 225, 73, 44, theme, True, 8)
+        d.multiline_text((62, 168), ht, font=hf, fill=theme["ink"], spacing=10)
+        d.line((62, 430, 1018, 430), fill=theme["ink"], width=2)
+        body_text(d, item, theme, 62, 458, 455, 105)
+        resume_card(img, template, (595, 460, 1010, 900), 2)
+        benefit_chips(d, item, theme, 62, 590, 470)
+        draw_cta(d, item, theme, (62, 840, 520, 912))
+        price(d, theme, 62, 930)
+
+    d.text((60, 1037), "resume.workslab.in", font=F(theme, 16, False), fill=theme["muted"])
     return img.convert("RGB")
 
 
+def normalize(item):
+    out = dict(item or {})
+    out["hook"] = out.get("hook", "A better resume starts here.")
+    out["body"] = out.get("body", out.get("sub", "Start with a clean professional format."))
+    out["value"] = out.get("value", "Easy to edit • Clean structure • Professional look")
+    out["cta"] = out.get("cta", "Get yours — ₹149")
+    return out
+
+
 def choose():
-    items=json.loads(HOOKS.read_text(encoding="utf-8"))
-    cfg=json.loads(DESIGNS.read_text(encoding="utf-8"))
-    templates=sorted(TEMPLATES.glob("*.png"))
-    if not items: raise ValueError("No content entries found.")
-    if not templates: raise FileNotFoundError("No resume templates found.")
+    items = json.loads(HOOKS.read_text(encoding="utf-8"))
+    cfg = json.loads(DESIGNS.read_text(encoding="utf-8"))
+    templates = sorted(TEMPLATES.glob("*.png"))
 
-    n=date.today().toordinal()
-    item=normalize(items[n % len(items)])
-    theme_name=cfg["rotation"][n % len(cfg["rotation"])]
-    template=templates[(n*7) % len(templates)]
-    return item,template,theme_name
+    if not items:
+        raise ValueError("No content entries found.")
+    if not templates:
+        raise FileNotFoundError("No resume templates found.")
+
+    n = date.today().toordinal()
+    concept_name = cfg["rotation"][n % len(cfg["rotation"])]
+    variant = (n // len(cfg["rotation"])) % 3
+    item = normalize(items[n % len(items)])
+    template = templates[(n * 7 + variant) % len(templates)]
+    return item, template, concept_name, variant
 
 
-if __name__=="__main__":
-    today=date.today().isoformat()
-    item,template,theme_name=choose()
-    image_output=OUTPUT/f"daily-{today}.jpg"
-    render(item,template,theme_name).save(image_output,quality=95,optimize=True)
+if __name__ == "__main__":
+    today = date.today().isoformat()
+    item, template, concept_name, variant = choose()
 
-    caption=(
+    image_output = OUTPUT / f"daily-{today}.jpg"
+    render(item, template, concept_name, variant).save(
+        image_output, quality=95, optimize=True
+    )
+
+    caption = (
         f"🚀 {item['hook']}\n\n"
         f"{item['body']}\n\n"
         f"{item['value']}\n\n"
@@ -345,13 +462,23 @@ if __name__=="__main__":
         "Get yours: https://resume.workslab.in\n\n"
         "#resume #resumetips #jobsearch #careertips #atsresume #resumetemplate"
     )
-    meta={
-        "date":today,"hook_id":item.get("id",""),"hook":item["hook"],
-        "body":item["body"],"value":item["value"],"cta":item["cta"],
-        "theme":theme_name,"layout":THEMES[theme_name]["layout"],
-        "template":template.name,"image":image_output.name,"caption":caption
+
+    metadata = {
+        "date": today,
+        "hook_id": item.get("id", ""),
+        "hook": item["hook"],
+        "body": item["body"],
+        "value": item["value"],
+        "cta": item["cta"],
+        "concept": concept_name,
+        "variant": variant,
+        "template": template.name,
+        "image": image_output.name,
+        "caption": caption,
     }
-    (OUTPUT/f"daily-{today}.json").write_text(
-        json.dumps(meta,ensure_ascii=False,indent=2),encoding="utf-8"
+
+    (OUTPUT / f"daily-{today}.json").write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
-    print(json.dumps(meta,ensure_ascii=False))
+    print(json.dumps(metadata, ensure_ascii=False))
