@@ -301,7 +301,7 @@ def benefit_chips(d, item, theme, x, y, max_w):
 
 def render(item, template, concept_name, variant=0):
     theme = CONCEPTS[concept_name]
-    img = base_background(theme, variant)
+    img = base_background(theme, variant).convert("RGBA")
     d = ImageDraw.Draw(img, "RGBA")
     logo(d, theme)
 
