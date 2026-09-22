@@ -1,7 +1,8 @@
 from pathlib import Path
-from PIL import Image, ImageOps, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 import json
-from scripts.generate_ad import make_ad
+
+from generate_ad import make_ad
 
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS = ROOT / "data" / "hooks.json"
