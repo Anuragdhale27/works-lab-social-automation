@@ -1,52 +1,22 @@
 [
-  {
-    "id": "h001",
-    "hook": "100 applications. Zero replies?",
-    "sub": "Maybe your resume needs an upgrade."
-  },
-  {
-    "id": "h002",
-    "hook": "Still using your college resume?",
-    "sub": "Give it a professional makeover."
-  },
-  {
-    "id": "h003",
-    "hook": "Is your resume ATS-friendly?",
-    "sub": "Start with a clean, recruiter-friendly template."
-  },
-  {
-    "id": "h004",
-    "hook": "Recruiters see your resume first.",
-    "sub": "Make your first impression count."
-  },
-  {
-    "id": "h005",
-    "hook": "Your resume looks outdated?",
-    "sub": "Switch to a modern professional template."
-  },
-  {
-    "id": "h006",
-    "hook": "Fresher with no experience?",
-    "sub": "Your resume can still stand out."
-  },
-  {
-    "id": "h007",
-    "hook": "Job switch planned?",
-    "sub": "Update your resume before your next application."
-  },
-  {
-    "id": "h008",
-    "hook": "Good skills. Weak resume?",
-    "sub": "Present your experience better."
-  },
-  {
-    "id": "h009",
-    "hook": "Stop sending the same resume everywhere.",
-    "sub": "Start with a professional template."
-  },
-  {
-    "id": "h010",
-    "hook": "A better resume starts here.",
-    "sub": "Professional templates for just ₹149."
-  }
+  {"id":"h001","hook":"100 applications. Zero replies?","body":"Your resume gets seen before your skills get explained.","value":"Cleaner structure • Stronger presentation • Easy to edit","cta":"Upgrade your resume — ₹149"},
+  {"id":"h002","hook":"Still using your college resume?","body":"Give your profile a professional refresh before your next application.","value":"Modern layouts • Recruiter-friendly sections • Ready to customize","cta":"Get the template — ₹149"},
+  {"id":"h003","hook":"Is your resume ATS-ready?","body":"Start with a clean structure that keeps your important details easy to find.","value":"Simple hierarchy • Clean spacing • ATS-focused format","cta":"Build yours today — ₹149"},
+  {"id":"h004","hook":"Recruiters see your resume first.","body":"Make that first document look as professional as your work.","value":"Professional design • Easy editing • Clear sections","cta":"Make the switch — ₹149"},
+  {"id":"h005","hook":"Your resume looks outdated?","body":"A fresh layout can make the same experience feel much easier to scan.","value":"Modern design • Better hierarchy • Quick edits","cta":"Refresh your resume — ₹149"},
+  {"id":"h006","hook":"Fresher with no experience?","body":"Your resume can still look polished, structured and ready for applications.","value":"Fresher-friendly • Clean format • Easy customization","cta":"Start at ₹149"},
+  {"id":"h007","hook":"Job switch planned?","body":"Update your resume before you start sending applications everywhere.","value":"Professional look • Easy edits • Multiple styles","cta":"Prepare your resume — ₹149"},
+  {"id":"h008","hook":"Good skills. Weak resume?","body":"Let your experience take the spotlight with a cleaner presentation.","value":"Better visual hierarchy • Cleaner sections • Less clutter","cta":"Upgrade the presentation — ₹149"},
+  {"id":"h009","hook":"Stop sending the same old resume.","body":"Use a modern template and customize it for your next opportunity.","value":"Modern layouts • Easy to edit • Reusable template","cta":"Get yours — ₹149"},
+  {"id":"h010","hook":"A better resume starts here.","body":"Pick a professional template and fill in your own story.","value":"Multiple designs • Simple editing • Job-ready structure","cta":"Choose your template — ₹149"},
+  {"id":"h011","hook":"Your resume has 6 seconds to make sense.","body":"Make the important information easier to spot at a glance.","value":"Clear hierarchy • Better spacing • Focused design","cta":"Clean it up — ₹149"},
+  {"id":"h012","hook":"Too much text. Not enough impact?","body":"A better layout can organize the same information without the visual overload.","value":"Balanced layout • Readable sections • Professional finish","cta":"Try a cleaner template — ₹149"},
+  {"id":"h013","hook":"One resume for every job?","body":"Start with a flexible base template you can tailor for each role.","value":"Reusable design • Easy customization • Clean structure","cta":"Build your base resume — ₹149"},
+  {"id":"h014","hook":"Your LinkedIn looks better than your resume?","body":"Bring the same professional feel to the document you send with applications.","value":"Modern presentation • Consistent sections • Easy editing","cta":"Upgrade your resume — ₹149"},
+  {"id":"h015","hook":"Resume gap? Focus on what you bring.","body":"Use a structured layout to highlight skills, projects and relevant work.","value":"Skills-first sections • Project-friendly • Clean layout","cta":"Show your strengths — ₹149"},
+  {"id":"h016","hook":"Internship to full-time?","body":"Turn student experience, projects and skills into a polished resume.","value":"Student-friendly • Project sections • Professional design","cta":"Create your next resume — ₹149"},
+  {"id":"h017","hook":"Your resume should look intentional.","body":"Spacing, alignment and hierarchy can make your information easier to follow.","value":"Clean alignment • Strong hierarchy • Polished finish","cta":"Start with a better template — ₹149"},
+  {"id":"h018","hook":"Still editing a Word file from years ago?","body":"Move to a modern template and make updates less painful.","value":"Reusable layout • Quick edits • Modern styling","cta":"Switch your template — ₹149"},
+  {"id":"h019","hook":"Your experience deserves better formatting.","body":"Keep the content you worked for and upgrade how it is presented.","value":"Professional structure • Clean visuals • Easy editing","cta":"Upgrade the format — ₹149"},
+  {"id":"h020","hook":"New role. New resume.","body":"Start your next application with a template that feels ready from day one.","value":"Modern styles • Easy customization • Job-ready structure","cta":"Get started — ₹149"}
 ]
