@@ -66,8 +66,7 @@ def wrap_by_pixels(draw, text, f, max_w):
             current = word
     if current:
         lines.append(current)
-    return "
-".join(lines)
+    return "\\n".join(lines)
 
 
 def fit(draw, text, max_w, max_h, start, minimum, theme, bold=True):
