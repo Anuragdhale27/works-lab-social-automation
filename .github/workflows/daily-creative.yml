@@ -17,6 +17,7 @@ jobs:
     env:
       TZ: "Asia/Kolkata"
       IG_API_VERSION: "v26.0"
+      WA_API_VERSION: "v26.0"
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
 
@@ -171,7 +172,13 @@ jobs:
             exit 1
           fi
 
-          CAPTION=$(jq -r '.caption' "$METADATA_FILE")
+          CAPTION=$(jq -r '.caption // empty' "$METADATA_FILE")
+          HOOK=$(jq -r '.hook // empty' "$METADATA_FILE")
+
+          if [ -z "$CAPTION" ] || [ -z "$HOOK" ]; then
+            echo "❌ Caption or hook is missing from metadata."
+            exit 1
+          fi
 
           {
             echo "CAPTION<<EOF"
@@ -179,7 +186,8 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-          echo "✅ Instagram caption loaded."
+          echo "HOOK=$HOOK" >> "$GITHUB_ENV"
+          echo "✅ Instagram metadata loaded."
 
       # ---------------------------------------------------
       # 11. Create Instagram media container
@@ -319,3 +327,88 @@ jobs:
 
           echo "✅ Instagram post published successfully."
           echo "Media ID: $MEDIA_ID"
+
+
+      # ---------------------------------------------------
+      # 14. Send WhatsApp success notification
+      # ---------------------------------------------------
+      - name: Send WhatsApp notification
+        run: |
+          set -euo pipefail
+
+          echo "Sending WhatsApp notification..."
+
+          if [ -z "${WA_ACCESS_TOKEN:-}" ]; then
+            echo "❌ WA_ACCESS_TOKEN is missing."
+            exit 1
+          fi
+
+          if [ -z "${WA_PHONE_NUMBER_ID:-}" ]; then
+            echo "❌ WA_PHONE_NUMBER_ID is missing."
+            exit 1
+          fi
+
+          if [ -z "${WA_RECIPIENT:-}" ]; then
+            echo "❌ WA_RECIPIENT is missing."
+            exit 1
+          fi
+
+          if [ -z "${WA_TEMPLATE_NAME:-}" ]; then
+            echo "❌ WA_TEMPLATE_NAME is missing."
+            exit 1
+          fi
+
+          PUBLISHED_AT=$(TZ=Asia/Kolkata date '+%-I:%M %p')
+
+          PAYLOAD=$(jq -n             --arg to "$WA_RECIPIENT"             --arg template "$WA_TEMPLATE_NAME"             --arg hook "$HOOK"             --arg published_at "$PUBLISHED_AT"             '{
+              messaging_product: "whatsapp",
+              to: $to,
+              type: "template",
+              template: {
+                name: $template,
+                language: {
+                  code: "en_US"
+                },
+                components: [
+                  {
+                    type: "body",
+                    parameters: [
+                      {
+                        type: "text",
+                        text: $hook
+                      },
+                      {
+                        type: "text",
+                        text: $published_at
+                      }
+                    ]
+                  }
+                ]
+              }
+            }')
+
+          echo "WhatsApp template: $WA_TEMPLATE_NAME"
+          echo "WhatsApp recipient configured."
+          echo "Template variables: hook + published time"
+
+          HTTP_CODE=$(curl             --silent             --show-error             --write-out "%{http_code}"             -X POST             -H "Authorization: Bearer $WA_ACCESS_TOKEN"             -H "Content-Type: application/json"             --data "$PAYLOAD"             "https://graph.facebook.com/$WA_API_VERSION/$WA_PHONE_NUMBER_ID/messages"             -o /tmp/whatsapp.json)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "WhatsApp response:"
+          cat /tmp/whatsapp.json
+          echo
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "❌ WhatsApp notification failed."
+            exit 1
+          fi
+
+          MESSAGE_ID=$(jq -r '.messages[0].id // empty' /tmp/whatsapp.json)
+
+          if [ -z "$MESSAGE_ID" ]; then
+            echo "❌ WhatsApp returned success HTTP status but no message ID."
+            exit 1
+          fi
+
+          echo "✅ WhatsApp notification sent successfully."
+          echo "Message ID: $MESSAGE_ID"
