@@ -108,8 +108,8 @@ def cta(d, text, box):
     )
 
 
-def draw_stat(d, x, y, label, value, accent=BROWN):
-    rr(d, (x, y, x + 300, y + 112), 0, fill=CREAM, outline=BROWN, width=2)
+def draw_stat(d, x, y, label, value, accent=BROWN, w=300):
+    rr(d, (x, y, x + w, y + 112), 0, fill=CREAM, outline=BROWN, width=2)
     d.text((x + 22, y + 17), label, font=font("sans", 16, False), fill=BROWN_2)
     d.text((x + 22, y + 49), value, font=font("serif", 31, True), fill=accent)
 
@@ -242,9 +242,11 @@ def render(item, concept, variant):
         d.multiline_text((62, 170), t, font=f, fill=BROWN, spacing=8)
         rr(d, (62, 385, 1018, 770), 0, fill=CREAM, outline=BROWN, width=2)
         d.text((94, 418), "Trip budget", font=font("serif", 29, True), fill=BROWN)
-        draw_stat(d, 94, 480, "Budget", "₹50,000", BROWN)
-        draw_stat(d, 416, 480, "Spent", "₹31,400", ORANGE)
-        draw_stat(d, 738, 480, "Left", "₹18,600", GREEN)
+        # Three cards fit exactly inside the 94–986 content area.
+        # 280px cards + 26px gaps = 892px total width.
+        draw_stat(d, 94, 480, "Budget", "₹50,000", BROWN, 280)
+        draw_stat(d, 400, 480, "Spent", "₹31,400", ORANGE, 280)
+        draw_stat(d, 706, 480, "Left", "₹18,600", GREEN, 280)
         d.text((94, 625), "Flights   •   Hotels   •   Food   •   Daily allowance",
                font=font("sans", 17, False), fill=BROWN_2)
         bf, bt = fit(d, item["body"], 850, 70, 19, 15, "sans", False, 4)
