@@ -1,38 +1,57 @@
-# Works Lab Social Automation — Starter
+# Works Lab Social Automation
 
-This starter uses the five approved Works Lab resume designs as the creative base.
+This repository generates and publishes daily Works Lab Instagram creatives.
 
-## Current flow
+## Products
 
-1. Pick a rotating hook from `data/hooks.json`.
-2. Pick one of the five resume designs.
-3. Generate a 1080×1080 Instagram creative with Pillow.
-4. Save the result under `generated_ads/`.
-5. Later, connect the Meta Instagram publishing API and WhatsApp Cloud API using GitHub Actions secrets.
+### Resume
+- Website: https://resume.workslab.in
+- Existing workflow: `.github/workflows/daily-creative.yml`
+- Existing resume automation is unchanged by the Tracker feature.
 
-## Important
+### Tracker
+- Website: https://tracker.workslab.in
+- Workflow: `.github/workflows/daily-tracker.yml`
+- Runs daily at **7:07 PM IST**.
+- Generates a new Tracker creative using the Tracker website visual system.
+- Publishes it to the same Instagram account using the existing `IG_ACCESS_TOKEN` and `IG_USER_ID` secrets.
+- Uses the existing WhatsApp secrets when configured; WhatsApp failure does not block Instagram publishing.
 
-- No Instagram/WhatsApp secrets are included in this repository.
-- The image generator itself is local/free; it does not require an AI image API.
-- For Instagram API publishing, the generated image must be reachable from a public URL.
-- The recommended next step is to put the repository on GitHub and enable GitHub Pages (or use your existing static site) for `generated_ads/`.
+## Tracker creative system
 
-## Planned secrets
+Tracker creatives match the product UI:
+- cream paper-like background
+- subtle dotted grid
+- dark chocolate brown typography
+- Works Lab orange accent
+- thin brown borders
+- editorial serif headlines
+- clean sans-serif body copy
+- financial dashboard / tracker cards
+- Indian rupee amounts and categories
 
-`IG_ACCESS_TOKEN`
-`IG_USER_ID`
-`WA_ACCESS_TOKEN`
-`WA_PHONE_NUMBER_ID`
-`WA_RECIPIENT`
-`WA_TEMPLATE_NAME` (when required by the WhatsApp messaging flow)
+The Tracker content engine rotates through hooks covering salary, budgeting, EMI, UPI spending, savings, wedding planning, trip planning, goals, privacy, features and product demonstrations.
 
-These values belong in GitHub repository Secrets, not in source files.
+## Tracker content format
+
+Every post contains:
+1. Hook
+2. Body/problem explanation
+3. Value points
+4. CTA
+5. Tracker website URL
+
+Content is stored in `data/tracker_hooks.json`.
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-python scripts/generate_ad.py
+python scripts/generate_tracker_ad.py
 ```
 
-GitHub Actions can schedule this daily. Scheduled workflows run on the default branch; GitHub notes that scheduled runs can be delayed under high load, so avoid scheduling exactly at the top of the hour.
+Generated files:
+- `generated_ads/tracker-daily-YYYY-MM-DD.jpg`
+- `generated_ads/tracker-daily-YYYY-MM-DD.json`
+
+No Instagram or WhatsApp secrets are stored in source code.

@@ -1,0 +1,209 @@
+name: Works Lab Daily Tracker Instagram Post
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 7:07 PM IST = 13:37 UTC
+    - cron: "37 13 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-publish-tracker:
+    runs-on: ubuntu-latest
+    env:
+      TZ: "Asia/Kolkata"
+      IG_API_VERSION: "v26.0"
+      WA_API_VERSION: "v26.0"
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      WA_ACCESS_TOKEN: ${{ secrets.WA_ACCESS_TOKEN }}
+      WA_PHONE_NUMBER_ID: ${{ secrets.WA_PHONE_NUMBER_ID }}
+      WA_RECIPIENT: ${{ secrets.WA_RECIPIENT }}
+      WA_TEMPLATE_NAME: ${{ secrets.WA_TEMPLATE_NAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Tracker creative
+        run: python scripts/generate_tracker_ad.py
+
+      - name: Set date
+        run: |
+          set -euo pipefail
+          echo "TODAY=$(TZ=Asia/Kolkata date +%Y-%m-%d)" >> "$GITHUB_ENV"
+          echo "Using India date: $(TZ=Asia/Kolkata date +%Y-%m-%d)"
+
+      - name: Commit generated Tracker creative
+        run: |
+          set -euo pipefail
+          git config user.name "works-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add generated_ads/tracker-daily-$TODAY.jpg generated_ads/tracker-daily-$TODAY.json
+          if git diff --cached --quiet; then
+            echo "No new Tracker files to commit."
+          else
+            git commit -m "chore: generate daily Works Lab Tracker creative"
+            git push
+          fi
+
+      - name: Verify Instagram credentials
+        run: |
+          set -euo pipefail
+          if [ -z "$IG_ACCESS_TOKEN" ]; then
+            echo "❌ IG_ACCESS_TOKEN is missing."
+            exit 1
+          fi
+          if [ -z "$IG_USER_ID" ]; then
+            echo "❌ IG_USER_ID is missing."
+            exit 1
+          fi
+          echo "✅ Instagram secrets found."
+
+      - name: Build public image URL
+        run: |
+          set -euo pipefail
+          COMMIT_SHA=$(git rev-parse HEAD)
+          IMAGE_URL="https://raw.githubusercontent.com/Anuragdhale27/works-lab-social-automation/$COMMIT_SHA/generated_ads/tracker-daily-$TODAY.jpg"
+          echo "IMAGE_URL=$IMAGE_URL" >> "$GITHUB_ENV"
+          echo "IMAGE_COMMIT_SHA=$COMMIT_SHA" >> "$GITHUB_ENV"
+          echo "Public image URL: $IMAGE_URL"
+
+      - name: Verify public image URL
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            HTTP_CODE=$(curl -L -sS -o /tmp/image.jpg -w "%{http_code}" "$IMAGE_URL")
+            CONTENT_TYPE=$(file -b --mime-type /tmp/image.jpg || true)
+            FILE_SIZE=$(wc -c < /tmp/image.jpg)
+            echo "Attempt $i | HTTP: $HTTP_CODE | Type: $CONTENT_TYPE | Size: $FILE_SIZE"
+            if [ "$HTTP_CODE" = "200" ] && [ "$CONTENT_TYPE" = "image/jpeg" ] && [ "$FILE_SIZE" -gt 10000 ]; then
+              echo "✅ Public image is available."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ Public image was not available."
+          exit 1
+
+      - name: Read Tracker Instagram metadata
+        run: |
+          set -euo pipefail
+          METADATA_FILE="generated_ads/tracker-daily-$TODAY.json"
+          if [ ! -f "$METADATA_FILE" ]; then
+            echo "❌ Metadata file not found: $METADATA_FILE"
+            exit 1
+          fi
+          CAPTION=$(jq -r '.caption // empty' "$METADATA_FILE")
+          HOOK=$(jq -r '.hook // empty' "$METADATA_FILE")
+          if [ -z "$CAPTION" ] || [ -z "$HOOK" ]; then
+            echo "❌ Caption or hook is missing from metadata."
+            exit 1
+          fi
+          {
+            echo "CAPTION<<EOF"
+            echo "$CAPTION"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          echo "HOOK=$HOOK" >> "$GITHUB_ENV"
+
+      - name: Create Instagram media container
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl --silent --show-error --write-out "%{http_code}" -X POST             -H "Authorization: Bearer $IG_ACCESS_TOKEN"             --data-urlencode "image_url=$IMAGE_URL"             --data-urlencode "caption=$CAPTION"             "https://graph.instagram.com/$IG_API_VERSION/$IG_USER_ID/media"             -o /tmp/container.json)
+          cat /tmp/container.json
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "❌ Instagram media container request failed."
+            exit 1
+          fi
+          CONTAINER_ID=$(jq -r '.id // empty' /tmp/container.json)
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "❌ No Instagram container ID returned."
+            exit 1
+          fi
+          echo "CONTAINER_ID=$CONTAINER_ID" >> "$GITHUB_ENV"
+
+      - name: Wait for Instagram processing
+        run: |
+          set -euo pipefail
+          for i in {1..18}; do
+            HTTP_CODE=$(curl --silent --show-error --write-out "%{http_code}"               -H "Authorization: Bearer $IG_ACCESS_TOKEN"               "https://graph.instagram.com/$IG_API_VERSION/$CONTAINER_ID?fields=status_code,status"               -o /tmp/status.json)
+            cat /tmp/status.json
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "❌ Instagram status request failed."
+              exit 1
+            fi
+            STATUS=$(jq -r '.status_code // empty' /tmp/status.json)
+            case "$STATUS" in
+              FINISHED|PUBLISHED)
+                echo "✅ Instagram container is ready."
+                exit 0
+                ;;
+              ERROR|EXPIRED)
+                echo "❌ Instagram container processing failed."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "❌ Instagram container did not finish."
+          exit 1
+
+      - name: Publish Instagram post
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl --silent --show-error --write-out "%{http_code}" -X POST             -H "Authorization: Bearer $IG_ACCESS_TOKEN"             --data-urlencode "creation_id=$CONTAINER_ID"             "https://graph.instagram.com/$IG_API_VERSION/$IG_USER_ID/media_publish"             -o /tmp/published.json)
+          cat /tmp/published.json
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "❌ Instagram publish request failed."
+            exit 1
+          fi
+          MEDIA_ID=$(jq -r '.id // empty' /tmp/published.json)
+          if [ -z "$MEDIA_ID" ]; then
+            echo "❌ Instagram media ID was not returned."
+            exit 1
+          fi
+          echo "✅ Tracker Instagram post published."
+          echo "Media ID: $MEDIA_ID"
+
+      - name: Send optional WhatsApp notification
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ -z "$WA_ACCESS_TOKEN" ] || [ -z "$WA_PHONE_NUMBER_ID" ] || [ -z "$WA_RECIPIENT" ] || [ -z "$WA_TEMPLATE_NAME" ]; then
+            echo "WhatsApp secrets not configured; skipping notification."
+            exit 0
+          fi
+
+          PUBLISHED_AT=$(TZ=Asia/Kolkata date '+%-I:%M %p')
+          PAYLOAD=$(jq -n             --arg to "$WA_RECIPIENT"             --arg template "$WA_TEMPLATE_NAME"             --arg hook "$HOOK"             --arg published_at "$PUBLISHED_AT"             '{
+              messaging_product: "whatsapp",
+              to: $to,
+              type: "template",
+              template: {
+                name: $template,
+                language: { code: "en_US" },
+                components: [{
+                  type: "body",
+                  parameters: [
+                    { type: "text", text: $hook },
+                    { type: "text", text: $published_at }
+                  ]
+                }]
+              }
+            }')
+
+          curl --silent --show-error --fail             -X POST             -H "Authorization: Bearer $WA_ACCESS_TOKEN"             -H "Content-Type: application/json"             --data "$PAYLOAD"             "https://graph.facebook.com/$WA_API_VERSION/$WA_PHONE_NUMBER_ID/messages"             -o /tmp/whatsapp.json
+
+          cat /tmp/whatsapp.json
+          echo "✅ WhatsApp notification attempted."
